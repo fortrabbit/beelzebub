@@ -144,3 +144,8 @@ Per default, everything is logged to STDOUT.
     //  set to 100. Default is 50 (in the example: 30 sec interval => 15 to
     //  45 seconds of sleep)
     $daemon->setSleepEntropy(50);
+
+# Caveats
+
+* Untested on PHP 5.3, but should work
+
