@@ -1,0 +1,29 @@
+{
+    "name": "fortrabbit/beelzebub",
+    "version": "0.1.0-dev",
+    "description": "A PHP framework for writing (forked) multi process daemons",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Ulrich Kautz",
+            "email": "uk@fortrabbit.com"
+        }
+    ],
+    "keywords": [
+        "daemon",
+        "detach",
+        "posix"
+    ],
+    "require": {
+        "php": ">=5.3",
+        "ext-pcntl": "*",
+        "ext-posix": "*",
+        "monolog/monolog": "1.5.0"
+    },
+    "autoload": {
+        "psr-0": {
+            "Fortrabbit\\Beelzebub": "src/"
+        }
+    }
+}
