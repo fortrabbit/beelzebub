@@ -137,12 +137,13 @@ Per default, everything is logged to STDOUT.
 
     <?php
 
-    // sleep entropy introduces randomness into the daemons behavior. A value of
-    //  0 indicates no rendomness, a value of 100 the maximum. For example, if 
-    //  the [interval] attrib of a worker is set to 30 it will be definitly
-    //  30 seconds if entropy is 0 and something between 0 and 60 if entropy is
-    //  set to 100. Default is 50 (in the example: 30 sec interval => 15 to
-    //  45 seconds of sleep)
+    // sleep entropy introduces randomness. A value of 0 indicates no randomness,
+    //  a value of 100 the maximum.
+    //  Example: if the interval attrib of a worker is set to 30.
+    //    entropy = 0:   the process manager waits exactly 30 seconds between worker loops
+    //    entropy = 50:  the process manager waits 15 to 45 seconds between worker loops
+    //    entropy = 100: the process manager waits 0 to 60 seconds between worker loops
+    //  Default is 50
     $daemon->setSleepEntropy(50);
 
 # Caveats
