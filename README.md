@@ -2,6 +2,8 @@
 
 Beelzebub is a PHP framework for writing (forked) multi process daemons. It provides a highly configurable process manager, an extend-able logging and a simple programming interface.
 
+If you are looking for a single process daemon framework, have a look at [clio](https://github.com/nramenta/clio).
+
 # Example
 
     <?php
