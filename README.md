@@ -39,7 +39,7 @@ If you are looking for a single process daemon framework, have a look at [clio](
 
 # Installation
 
-    $ php composer.phar install "fortrabbit/beelzebub" "@dev"
+    $ php composer.phar require "fortrabbit/beelzebub:@dev"
 
 # Usage
 
