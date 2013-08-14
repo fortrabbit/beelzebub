@@ -2,9 +2,9 @@
 
 require_once __DIR__. '/../vendor/autoload.php';
 
-use Fortrabbit\Beelzebub\DaemonInterface;
 use Fortrabbit\Beelzebub\Daemon;
-use Fortrabbit\Beelzebub\WorkerInterface;
+use Fortrabbit\Beelzebub\DefaultDaemon;
+use Fortrabbit\Beelzebub\Worker;
 
 print "Example shows a detaching daemon with a single worker printing out something to the logs about every second\n";
 
@@ -12,10 +12,10 @@ if (count($argv) !== 3) {
     die("Usage: $argv[0] <start|stop> <pid-file>");
 }
 
-$daemon = new Daemon("simple", "1.0.0");
+$daemon = new DefaultDaemon("simple", "1.0.0");
 $daemon->registerWorker(array(
     'hello-world' => array(
-        'loop' => function (WorkerInterface &$worker, DaemonInterface &$daemon) {
+        'loop' => function (Worker &$worker, Daemon &$daemon) {
             $daemon->getLogger()->addInfo("Logging from client every second");
         },
         'interval' => 1

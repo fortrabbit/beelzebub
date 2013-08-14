@@ -16,14 +16,20 @@
         "posix"
     ],
     "require": {
-        "php": ">=5.3",
+        "php": ">=5.3.3",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "monolog/monolog": "1.5.0"
+        "monolog/monolog": "1.5.0",
+        "kriswallsmith/spork": "@dev"
+    },
+    "require-dev": {
+        "mockery/mockery": "@dev",
+        "codeception/aspect-mock": "@dev",
+        "lisachenko/go-aop-php": "@dev"
     },
     "autoload": {
         "psr-0": {
-            "Fortrabbit\\Beelzebub": "src/"
+            "Fortrabbit\\Beelzebub\\": "src/"
         }
     }
 }

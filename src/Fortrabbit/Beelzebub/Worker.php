@@ -12,144 +12,113 @@
 
 namespace Fortrabbit\Beelzebub;
 
-use Fortrabbit\Beelzebub\DaemonInterface;
-use Fortrabbit\Beelzebub\WorkerInterface;
+use Fortrabbit\Beelzebub\Daemon;
 
 /**
- * Base class for Worker
+ * Base class for daemon
  *
  * @author Ulrich Kautz <uk@fortrabbit.com>
  */
 
-class Worker implements WorkerInterface
+interface Worker
 {
 
     /**
-     * @var string
+     * Constructor
+     *
+     * @param string   $name     Name of the worker
+     * @param int      $interval Interval this worker is to be called
+     * @param callback $loop Implementation of the worker
+     * @param callback $startup  To be called once at startup
+     * @param int      $amount   Amount of instances to run
      */
-    protected $name;
-
-    /**
-     * @var int
-     */
-    protected $interval;
-
-    /**
-     * @var int
-     */
-    protected $amount;
-
-    /**
-     * @var callback
-     */
-    protected $loop;
-
-    /**
-     * @var callback
-     */
-    protected $startup;
-
-    /**
-     * {@inheritdoc}
-     */
-    public function __construct($name, $interval, $loop, $startup = null, $amount = 1)
-    {
-        $this->name     = $name;
-        $this->interval = $interval;
-        $this->loop     = $loop;
-        $this->startup  = $startup;
-        $this->amount   = $amount ?: 1;
-    }
+    public function __construct($name, $interval, $loop, $startup = null, $amount = 1);
 
     /**
      * Run worker loop callback
      *
-     * @param Fortrabbit\Beelzebub\Deamon $daemon The paren daemon
-     * @param array                  $args   Args from startup
+     * @param Daemon &$daemon The paren daemon
+     * @param array                       $args    Args from startup
      */
-    public function runLoop(DaemonInterface &$daemon, array $args = array())
-    {
-        $callArgs = array(&$this, &$daemon);
-        if ($args) {
-            $callArgs[] = $args;
-        }
-        call_user_func_array($this->loop, $callArgs);
-    }
+    public function runLoop(Daemon &$daemon, array $args = array());
 
     /**
      * Checks whether worker has startup method
      *
      * @return bool
      */
-    public function hasStartup()
-    {
-        return $this->startup ? true : false;
-    }
+    public function hasStartup();
 
     /**
      * Run the actual startup method
      *
-     * @param Fortrabbit\Beelzebub\Deamon &$daemon The paren daemon
+     * @param Daemon &$daemon The paren daemon
      *
      * @return bool
      */
-    public function runStartup(DaemonInterface &$daemon)
-    {
-        if ($this->startup) {
-            return call_user_func_array($this->startup, array($this, $daemon));
-        } else {
-            return null;
-        }
-    }
+    public function runStartup(Daemon &$daemon);
 
     /**
      * Getter for name
      *
      * @return string
      */
-    public function getName()
-    {
-        return $this->name;
-    }
+    public function getName();
 
     /**
      * Getter for interval
      *
      * @return int
      */
-    public function getInterval()
-    {
-        return $this->interval;
-    }
+    public function getInterval();
 
     /**
      * Setter for interval
      *
      * @param int $interval New interval in seconds
      */
-    public function setInterval($interval)
-    {
-        $this->interval = $interval;
-    }
+    public function setInterval($interval);
 
     /**
      * Getter for amount
      *
      * @return int
      */
-    public function getAmount()
-    {
-        return $this->amount;
-    }
+    public function getAmount();
 
     /**
      * Setter for amount
      *
      * @param int $amount New amount
      */
-    public function setAmount($amount)
-    {
-        return $this->amount = $amount;
-    }
+    public function setAmount($amount);
+
+    /**
+     * Add pid to pid list .. called from Daemon
+     *
+     * @param int $pid
+     */
+    public function addPid($pid);
+
+    /**
+     * Remove pid from list .. called from Daemon
+     *
+     * @param int $pid
+     */
+    public function removePid($pid);
+
+    /**
+     * Returns all pids
+     *
+     * @return array
+     */
+    public function getPids();
+
+    /**
+     * Returns amount of running processes
+     *
+     * @return int
+     */
+    public function countRunning();
 
 }
