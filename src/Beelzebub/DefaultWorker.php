@@ -62,21 +62,17 @@ class DefaultWorker implements Worker
     /**
      * {@inheritdoc}
      */
-    public function __construct(Daemon $daemon, $name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1)
+    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1)
     {
-        $this->daemon   = $daemon;
         $this->name     = $name;
         $this->loop     = $loop;
         $this->interval = $interval;
         $this->startup  = $startup;
         $this->amount   = $amount ? : 1;
-        $this->pids     = array();
     }
 
     /**
-     * Run worker loop callback
-     *
-     * @param array $args   Args from startup
+     * {@inheritdoc}
      */
     public function runLoop(array $args = array())
     {
@@ -88,9 +84,7 @@ class DefaultWorker implements Worker
     }
 
     /**
-     * Checks whether worker has startup method
-     *
-     * @return bool
+     * {@inheritdoc}
      */
     public function hasStartup()
     {
@@ -98,9 +92,7 @@ class DefaultWorker implements Worker
     }
 
     /**
-     * Run the actual startup method
-     *
-     * @return bool
+     * {@inheritdoc}
      */
     public function runStartup()
     {
@@ -112,9 +104,15 @@ class DefaultWorker implements Worker
     }
 
     /**
-     * Getter for daemon
-     *
-     * @return Daemon
+     * {@inheritdoc}
+     */
+    public function setDaemon(Daemon $daemon)
+    {
+        $this->daemon = $daemon;
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function getDaemon()
     {
@@ -122,9 +120,7 @@ class DefaultWorker implements Worker
     }
 
     /**
-     * Getter for name
-     *
-     * @return string
+     * {@inheritdoc}
      */
     public function getName()
     {
@@ -132,9 +128,7 @@ class DefaultWorker implements Worker
     }
 
     /**
-     * Getter for interval
-     *
-     * @return int
+     * {@inheritdoc}
      */
     public function getInterval()
     {
@@ -142,9 +136,7 @@ class DefaultWorker implements Worker
     }
 
     /**
-     * Getter for amount
-     *
-     * @return int
+     * {@inheritdoc}
      */
     public function getAmount()
     {
@@ -152,49 +144,11 @@ class DefaultWorker implements Worker
     }
 
     /**
-     * Setter for amount
-     *
-     * @param int $amount New amount
+     * {@inheritdoc}
      */
     public function setAmount($amount)
     {
         return $this->amount = $amount;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function addPid($pid)
-    {
-        if (!isset($this->pids[$pid])) {
-            $this->pids[$pid] = true;
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function removePid($pid)
-    {
-        if (isset($this->pids[$pid])) {
-            unset($this->pids[$pid]);
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getPids()
-    {
-        return array_keys($this->pids);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function countRunning()
-    {
-        return count($this->pids);
     }
 
 }

@@ -13,6 +13,7 @@
 namespace Beelzebub;
 
 use Beelzebub\Daemon;
+use Spork\Fork;
 
 /**
  * Base class for daemon
@@ -26,14 +27,20 @@ interface Worker
     /**
      * Constructor
      *
-     * @param Daemon   $daemon   The daemon it shall run in
      * @param string   $name     Name of the worker
      * @param int      $interval Wait interval after each run
      * @param \Closure $loop     Loop callback of the worker
      * @param \Closure $startup  Optional startup callback of the worker
      * @param int      $amount   Amount of instances to run
      */
-    public function __construct(Daemon $daemon, $name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1);
+    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1);
+
+    /**
+     * Set daemon after added
+     *
+     * @param Daemon $daemon
+     */
+    public function setDaemon(Daemon $daemon);
 
     /**
      * Run worker loop callback
@@ -84,32 +91,5 @@ interface Worker
      */
     public function getInterval();
 
-    /**
-     * Add pid to pid list .. called from Daemon
-     *
-     * @param int $pid
-     */
-    public function addPid($pid);
-
-    /**
-     * Remove pid from list .. called from Daemon
-     *
-     * @param int $pid
-     */
-    public function removePid($pid);
-
-    /**
-     * Returns all pids
-     *
-     * @return array
-     */
-    public function getPids();
-
-    /**
-     * Returns amount of running processes
-     *
-     * @return int
-     */
-    public function countRunning();
 
 }

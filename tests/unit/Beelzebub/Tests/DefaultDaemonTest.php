@@ -84,7 +84,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyNeverInvoked('kill');
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
     }
 
     public function testRegisterNewWorker()
@@ -99,7 +99,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyNeverInvoked('kill');
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
     }
 
     /**
@@ -123,7 +123,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyNeverInvoked('kill');
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
     }
 
     public function testRunDaemonLoopFirstTime()
@@ -146,12 +146,13 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $fork->shouldReceive('then')
             ->once();
         $this->daemon->addWorker($this->worker);
+        $this->daemon->stop();
         $this->daemon->loop(1);
 
         $this->posix->verifyNeverInvoked('kill');
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
     }
 
     public function testRunDaemonLoopWithDiedWorkers()
@@ -177,12 +178,13 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $fork->shouldReceive('then')
             ->once();
         $this->daemon->addWorker($this->worker);
+        $this->daemon->stop();
         $this->daemon->loop(1);
 
         $this->posix->verifyInvokedOnce('kill', array(123, 0));
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
 
     }
 
@@ -202,12 +204,13 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->manager->shouldReceive('fork')
             ->never();
         $this->daemon->addWorker($this->worker);
+        $this->daemon->stop();
         $this->daemon->loop(1);
 
         $this->posix->verifyInvokedOnce('kill', array(123, 0));
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
 
     }
 
@@ -239,6 +242,10 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->worker->shouldReceive('runStartup')
             ->once()
             ->withNoArgs();
+        $this->worker->shouldReceive('getInterval')
+            ->once()
+            ->withNoArgs()
+            ->andReturn(1);
         $this->worker->shouldReceive('runLoop')
             ->once()
             ->withNoArgs();
@@ -258,11 +265,12 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
             ->once()
             ->with(123);
         $this->daemon->addWorker($this->worker);
+        $this->daemon->stop();
         $this->daemon->loop(1);
         $this->pcntl->verifyNeverInvoked('signal');
         $this->posix->verifyNeverInvoked('kill');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyInvokedOnce('doUsleep');
     }
 
     public function testRunDaemonMultiLoopRunCallback()
@@ -298,11 +306,12 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
             ->once()
             ->with(123);
         $this->daemon->addWorker($this->worker);
+        $this->daemon->stop();
         $this->daemon->loop(2);
         $this->pcntl->verifyNeverInvoked('signal');
         $this->posix->verifyInvokedOnce('kill', 123);
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyInvokedOnce('doSleep');
+        $this->builtin->verifyInvokedOnce('doUsleep');
     }
 
     public function testShutdownDaemonWithoutWorkers()
@@ -312,7 +321,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->pcntl->verifyNeverInvoked('signal');
         $this->posix->verifyNeverInvoked('kill');
         $this->builtin->verifyInvokedOnce('doExit');
-        $this->builtin->verifyInvokedOnce('doSleep');
+        $this->builtin->verifyInvokedOnce('doUsleep');
     }
 
     public function testShutdownDaemonWithStoppedWorker()
@@ -330,7 +339,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyNeverInvoked('kill');
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyInvokedOnce('doExit');
-        $this->builtin->verifyInvokedOnce('doSleep');
+        $this->builtin->verifyInvokedOnce('doUsleep');
     }
 
     public function testShutdownDaemonWithRunningResistingWorker()
@@ -348,7 +357,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyInvokedMultipleTimes('kill', 34, 123);
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyInvokedOnce('doExit');
-        $this->builtin->verifyInvokedMultipleTimes('doSleep', 30);
+        $this->builtin->verifyInvokedMultipleTimes('doUsleep', 30);
     }
 
     public function testShutdownDaemonWithRunningAbidingWorker()
@@ -366,7 +375,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyInvokedMultipleTimes('kill', 1, 123);
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyInvokedOnce('doExit');
-        $this->builtin->verifyInvokedMultipleTimes(30, 'doSleep');
+        $this->builtin->verifyInvokedMultipleTimes(30, 'doUsleep');
     }
 
     public function testShutdownDaemonWithRunningFromWorker()
@@ -377,7 +386,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyNeverInvoked('kill');
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyInvokedOnce('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
     }
 
     public function testGetSetRestartSignal()
@@ -391,9 +400,8 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->posix->verifyNeverInvoked('kill');
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyNeverInvoked('doExit');
-        $this->builtin->verifyNeverInvoked('doSleep');
+        $this->builtin->verifyNeverInvoked('doUsleep');
     }
-
 
 
     /**
@@ -407,6 +415,8 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * @param bool $result
+     *
      * @return ClassProxy
      */
     private function getPosixDouble($result = true)
@@ -422,8 +432,8 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
     private function getBuiltinDouble()
     {
         return test::double('Beelzebub\Wrapper\Builtin', array(
-            'doExit'  => null,
-            'doSleep' => null,
+            'doExit'   => null,
+            'doUsleep' => null,
         ));
     }
 

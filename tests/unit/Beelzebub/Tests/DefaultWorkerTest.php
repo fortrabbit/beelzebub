@@ -35,7 +35,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
     {
         $loop   = function () {
         };
-        $worker = new DefaultWorker($this->daemon, 'test', $loop, null, 10);
+        $worker = new DefaultWorker($this->daemon, 'test', $loop);
         $this->assertSame('test', $worker->getName());
         $this->assertSame($this->daemon, $worker->getDaemon());
     }
@@ -47,7 +47,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
             $value++;
             $value += count($args);
         };
-        $worker = new DefaultWorker($this->daemon, 'test', $loop, null, 10);
+        $worker = new DefaultWorker($this->daemon, 'test', $loop);
         $worker->runLoop();
         $this->assertSame(1, $value);
 
@@ -59,7 +59,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
     {
         $loop   = function () {
         };
-        $worker = new DefaultWorker($this->daemon, 'test', $loop, null, 10);
+        $worker = new DefaultWorker($this->daemon, 'test', $loop);
         $this->assertFalse($worker->hasStartup(), 'No startup method defined');
         $result = $worker->runStartup();
         $this->assertNull($result, 'Null returned and nothing run');
@@ -75,7 +75,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
 
             return 5;
         };
-        $worker  = new DefaultWorker($this->daemon, 'test', $loop, $startup, 10);
+        $worker  = new DefaultWorker($this->daemon, 'test', $loop, 1, $startup, 10);
         $this->assertTrue($worker->hasStartup(), 'Startup method defined');
         $result = $worker->runStartup();
         $this->assertSame(1, $value);
@@ -91,7 +91,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
         $value   = 0;
         $loop    = function () {
         };
-        $worker  = new DefaultWorker($this->daemon, 'test', $loop, null, 10);
+        $worker  = new DefaultWorker($this->daemon, 'test', $loop, 1, null, 10);
         $this->assertSame(10, $worker->getAmount());
 
         $worker->setAmount(5);
@@ -103,7 +103,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
         $value   = 0;
         $loop    = function () {
         };
-        $worker  = new DefaultWorker($this->daemon, 'test', $loop, null, 10);
+        $worker  = new DefaultWorker($this->daemon, 'test', $loop, 1, null, 10);
 
         $pids = $worker->getPids();
         $this->assertInternalType('array', $pids);
@@ -125,7 +125,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
         $value   = 0;
         $loop    = function () {
         };
-        $worker  = new DefaultWorker($this->daemon, 'test', $loop, null, 10);
+        $worker  = new DefaultWorker($this->daemon, 'test', $loop, 1, null, 10);
 
         $pids = $worker->getPids();
         $this->assertInternalType('array', $pids);
@@ -145,7 +145,7 @@ class DefaultWorkerTest extends \PHPUnit_Framework_TestCase
         $value   = 0;
         $loop    = function () {
         };
-        $worker  = new DefaultWorker($this->daemon, 'test', $loop, null, 10);
+        $worker  = new DefaultWorker($this->daemon, 'test', $loop, 1, null, 10);
 
         $pids = $worker->getPids();
         $this->assertInternalType('array', $pids);

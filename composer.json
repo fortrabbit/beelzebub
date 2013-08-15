@@ -20,13 +20,14 @@
         "ext-pcntl": "*",
         "ext-posix": "*",
         "monolog/monolog": "1.5.0",
-        "kriswallsmith/spork": "@dev",
-        "phpunit/phpunit": "3.7.*"
+        "symfony/event-dispatcher": "2.3.*",
+        "kriswallsmith/spork": "@dev"
     },
     "require-dev": {
         "mockery/mockery": "@dev",
         "codeception/aspect-mock": "@dev",
-        "lisachenko/go-aop-php": "@dev"
+        "lisachenko/go-aop-php": "@dev",
+        "phpunit/phpunit": "3.7.*"
     },
     "autoload": {
         "psr-0": {

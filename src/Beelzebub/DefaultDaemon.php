@@ -18,6 +18,7 @@ use Beelzebub\Wrapper\Posix;
 use Monolog\Logger;
 use Spork\Fork;
 use Spork\ProcessManager;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 declare(ticks = 1);
 
@@ -41,9 +42,14 @@ class DefaultDaemon implements Daemon
     protected $logger;
 
     /**
-     * @var Worker[]
+     * @var EventDispatcherInterface
      */
-    protected $workers;
+    protected $event;
+
+    /**
+     * @var WorkerForks[]
+     */
+    protected $workerForks;
 
     /**
      * @var bool
@@ -73,16 +79,18 @@ class DefaultDaemon implements Daemon
     /**
      * Create new daemon instance
      *
-     * @param ProcessManager $manager
-     * @param Logger         $logger
+     * @param ProcessManager           $manager
+     * @param Logger                   $logger
+     * @param EventDispatcherInterface $event
      */
-    public function __construct(ProcessManager $manager, Logger $logger)
+    public function __construct(ProcessManager $manager, Logger $logger, EventDispatcherInterface $event)
     {
         $this->manager         = $manager;
         $this->logger          = $logger;
+        $this->event           = $event;
         $this->shutdownSignal  = SIGQUIT;
-        $this->shutdownTimeout = 30;
-        $this->workers         = array();
+        $this->shutdownTimeout = 5;
+        $this->workerForks     = array();
     }
 
     /**
@@ -91,10 +99,13 @@ class DefaultDaemon implements Daemon
     public function addWorker(Worker $worker)
     {
         $name = $worker->getName();
-        if (isset($this->workers[$name])) {
+        if (isset($this->workerForks[$name])) {
             throw new \InvalidArgumentException("Worker with name {$name} already registered");
         }
-        $this->workers[$name] = $worker;
+        $this->event->dispatch('worker.pre-add', new DaemonEvent($worker));
+        $worker->setDaemon($this);
+        $this->workerForks[$name] = new WorkerForks($worker);
+        $this->event->dispatch('worker.post-add', new DaemonEvent($worker));
     }
 
     /**
@@ -105,10 +116,15 @@ class DefaultDaemon implements Daemon
     public function loop($iterations = true)
     {
         $this->bindParentSignals();
+        $this->logger->debug("Starting loop");
 
         while (true) {
-            foreach ($this->getWorkers() as $worker) {
-                $this->runWorkerInstances($worker);
+            foreach ($this->getWorkerForks() as $workerFork) {
+                $worker = $workerFork->getWorker();
+                $this->logger->debug("Run instances of {$worker->getName()}");
+                $this->event->dispatch('worker.pre-start', new DaemonEvent($worker));
+                $this->runWorkerInstances($workerFork);
+                $this->event->dispatch('worker.post-start', new DaemonEvent($worker));
             }
             if ($iterations !== true && --$iterations === 0) {
                 break;
@@ -117,11 +133,20 @@ class DefaultDaemon implements Daemon
             $interval = 20;
             for ($i = 0; $i < $interval; $i++) {
                 if ($this->stopped) {
+                    $this->event->dispatch('daemon.stopping', new DaemonEvent($this));
                     break 2;
                 }
                 BuiltIn::doUsleep(100000);
             }
         }
+    }
+
+    /**
+     * Set stop (does not kill anything)
+     */
+    public function stop()
+    {
+        $this->stopped = true;
     }
 
     /**
@@ -139,7 +164,9 @@ class DefaultDaemon implements Daemon
                 if (!$this->stopped) {
                     $this->logger->info("Shutting down parent, sending shutdown to all workers");
                     $this->stopped = true;
+                    $this->event->dispatch('daemon.pre-shutdown', new DaemonEvent($this));
                     $this->shutdownWorkers();
+                    $this->event->dispatch('daemon.post-shutdown', new DaemonEvent($this));
                     Builtin::doExit();
                 }
                 break;
@@ -158,6 +185,7 @@ class DefaultDaemon implements Daemon
             case SIGTERM:
             case SIGQUIT:
             case SIGINT:
+                $this->event->dispatch('daemon.child-pre-exit', new DaemonEvent($this));
                 Builtin::doExit();
                 break;
         }
@@ -187,11 +215,11 @@ class DefaultDaemon implements Daemon
     /**
      * Returns all registered workers
      *
-     * @return Worker[]
+     * @return WorkerForks[]
      */
-    protected function getWorkers()
+    protected function getWorkerForks()
     {
-        return array_values($this->workers);
+        return array_values($this->workerForks);
     }
 
     /**
@@ -209,76 +237,49 @@ class DefaultDaemon implements Daemon
     /**
      * Runs all worker instances
      *
-     * @param Worker $worker
+     * @param WorkerForks $workerFork
      */
-    protected function runWorkerInstances(Worker $worker)
+    protected function runWorkerInstances(WorkerForks $workerFork)
     {
-        $this->cleanupStoppedWorkerInstances($worker);
-
         // start now required amount
-        $amount = $worker->getAmount() - $worker->countRunning();
+        $workerFork->clearStopped();
+        $amount = $workerFork->countMissing();
         for ($i = 0; $i < $amount; $i++) {
-            $this->logger->info("Starting new instance of worker {$worker->getName()}");
-            $this->runWorkerInFork($worker);
-        }
-    }
-
-    /**
-     * Removes all stopped workers from pid list
-     *
-     * @param Worker $worker
-     */
-    protected function cleanupStoppedWorkerInstances(Worker $worker)
-    {
-        foreach ($worker->getPids() as $pid) {
-            if (!$this->isPidRunning($pid)) {
-                $worker->removePid($pid);
-            }
-        }
-    }
-
-    /**
-     * Sends shutdown to all instances of a named worker
-     *
-     * @param Worker $worker
-     */
-    protected function shutdownWorkerInstances(Worker $worker)
-    {
-        foreach ($worker->getPids() as $pid) {
-            Posix::kill($pid, $this->shutdownSignal);
+            $this->logger->info("Starting new instance of worker {$workerFork->getName()}");
+            $this->event->dispatch('daemon.pre-fork', new DaemonEvent($workerFork));
+            $this->makeNewFork($workerFork);
+            $this->event->dispatch('daemon.post-fork', new DaemonEvent($workerFork));
         }
     }
 
     /**
      * Runs a worker in a fork
      *
-     * @param Worker $worker
+     * @param WorkerForks $workerForks
      */
-    protected function runWorkerInFork(Worker $worker)
+    protected function makeNewFork(WorkerForks $workerForks)
     {
+        $this->logger->debug("Forking for {$workerForks->getName()}");
         $self = & $this;
-        $this->manager
-            ->fork(function () use ($worker, $self) {
-                $self->bindWorkerSignals();
-                if ($worker->hasStartup()) {
-                    $worker->runStartup();
-                }
+        $fork = $this->manager->fork(function () use ($workerForks, $self) {
+            $self->bindWorkerSignals();
+            $worker = $workerForks->getWorker();
+            if ($worker->hasStartup()) {
+                $worker->runStartup();
+            }
 
-                while (true) {
-                    $worker->runLoop();
-
-                    $interval = $worker->getInterval() ? : 1;
-                    for ($i = 0; $i < $interval * 10; $i++) {
-                        if ($this->stopped) {
-                            break;
-                        }
-                        BuiltIn::doUsleep(100000);
+            $interval = ($worker->getInterval() ? : 1) * 10;
+            while (true) {
+                $worker->runLoop();
+                for ($i = 0; $i < $interval; $i++) {
+                    BuiltIn::doUsleep(100000);
+                    if ($this->stopped) {
+                        break 2;
                     }
                 }
-            })
-            ->then(function (Fork $fork) use ($worker) {
-                $worker->addPid($fork->getPid());
-            });
+            }
+        });
+        $workerForks->addFork($fork);
     }
 
     /**
@@ -308,21 +309,22 @@ class DefaultDaemon implements Daemon
         $this->logger->info("Shutting down all workers");
 
         // send initial signal..
-        foreach ($this->getWorkers() as $worker) {
-            $this->cleanupStoppedWorkerInstances($worker);
-            $this->shutdownWorkerInstances($worker);
+        foreach ($this->getWorkerForks() as $workerForks) {
+            $workerForks->clearStopped();
+            $this->logger->debug("Sending shutdown to {$workerForks->getName()}");
+            $workerForks->shutdownAll($this->shutdownSignal);
+            $this->event->dispatch('worker.shutdown', new DaemonEvent($workerForks->getWorker()));
         }
 
         // wait for shutdown
         for ($try = $this->shutdownTimeout; $try > 0; $try--) {
-            BuiltIn::doSleep(1);
+            BuiltIn::doUsleep(1000000);
             $resisting = 0;
-            foreach ($this->getWorkers() as $worker) {
-                $this->cleanupStoppedWorkerInstances($worker);
-                if (($running = $worker->countRunning()) > 0) {
-                    #error_log("STILL RUNNING OF {$worker->getName()}: $running");
+            foreach ($this->getWorkerForks() as $workerForks) {
+                $workerForks->clearStopped();
+                if (($running = $workerForks->countRunning()) > 0) {
                     $resisting += $running;
-                    $this->logger->info("Found $running resisting processes of {$worker->getName()} - $try seconds until slaughter");
+                    $this->logger->info("Found $running resisting processes of {$workerForks->getName()} - $try seconds until slaughter");
                 }
             }
 
@@ -333,12 +335,13 @@ class DefaultDaemon implements Daemon
         }
 
         // slaughter survivors
-        foreach ($this->getWorkers() as $worker) {
-            $this->cleanupStoppedWorkerInstances($worker);
-            $this->logger->alert("Need to slaughter {$worker->countRunning()} of {$worker->getName()}");
-            foreach ($worker->getPids() as $pid) {
-                Posix::kill($pid, SIGKILL);
+        foreach ($this->getWorkerForks() as $workerForks) {
+            $workerForks->clearStopped();
+            if ($workerForks->countRunning() > 0) {
+                $this->logger->alert("Need to slaughter {$workerForks->countRunning()} of {$workerForks->getName()}");
+                $workerForks->shutdownAll(SIGKILL);
             }
+            $this->event->dispatch('worker.killed', new DaemonEvent($workerForks->getWorker()));
         }
 
     }

@@ -22,23 +22,13 @@ class Builtin
     }
 
     /**
-     * Wraps sleep() method
-     *
-     * @param int $seconds
-     */
-    public static function doSleep($seconds)
-    {
-        sleep($seconds);
-    }
-
-    /**
      * Wraps usleep() method
      *
-     * @param int $nanoseconds
+     * @param int $microseconds
      */
-    public static function doUsleep($nanoseconds)
+    public static function doUsleep($microseconds)
     {
-        usleep($nanoseconds);
+        usleep($microseconds);
     }
 
 }
