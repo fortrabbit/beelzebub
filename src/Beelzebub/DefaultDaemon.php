@@ -10,11 +10,11 @@
  * file that was distributed with this source code.
  */
 
-namespace Fortrabbit\Beelzebub;
+namespace Beelzebub;
 
-use Fortrabbit\Beelzebub\Daemon;
-use Fortrabbit\Beelzebub\Wrapper\Builtin;
-use Fortrabbit\Beelzebub\Wrapper\Posix;
+use Beelzebub\Daemon;
+use Beelzebub\Wrapper\Builtin;
+use Beelzebub\Wrapper\Posix;
 use Monolog\Logger;
 use Spork\Fork;
 use Spork\ProcessManager;
@@ -113,7 +113,14 @@ class DefaultDaemon implements Daemon
             if ($iterations !== true && --$iterations === 0) {
                 break;
             }
-            BuiltIn::doSleep(2);
+
+            $interval = 20;
+            for ($i = 0; $i < $interval; $i++) {
+                if ($this->stopped) {
+                    break 2;
+                }
+                BuiltIn::doUsleep(100000);
+            }
         }
     }
 
@@ -152,7 +159,7 @@ class DefaultDaemon implements Daemon
             case SIGQUIT:
             case SIGINT:
                 Builtin::doExit();
-            break;
+                break;
         }
     }
 
@@ -182,7 +189,8 @@ class DefaultDaemon implements Daemon
      *
      * @return Worker[]
      */
-    protected function getWorkers() {
+    protected function getWorkers()
+    {
         return array_values($this->workers);
     }
 
@@ -252,7 +260,21 @@ class DefaultDaemon implements Daemon
         $this->manager
             ->fork(function () use ($worker, $self) {
                 $self->bindWorkerSignals();
-                $worker->runLoop($self);
+                if ($worker->hasStartup()) {
+                    $worker->runStartup();
+                }
+
+                while (true) {
+                    $worker->runLoop();
+
+                    $interval = $worker->getInterval() ? : 1;
+                    for ($i = 0; $i < $interval * 10; $i++) {
+                        if ($this->stopped) {
+                            break;
+                        }
+                        BuiltIn::doUsleep(100000);
+                    }
+                }
             })
             ->then(function (Fork $fork) use ($worker) {
                 $worker->addPid($fork->getPid());
@@ -298,7 +320,7 @@ class DefaultDaemon implements Daemon
             foreach ($this->getWorkers() as $worker) {
                 $this->cleanupStoppedWorkerInstances($worker);
                 if (($running = $worker->countRunning()) > 0) {
-                    error_log("STILL RUNNING OF {$worker->getName()}: $running");
+                    #error_log("STILL RUNNING OF {$worker->getName()}: $running");
                     $resisting += $running;
                     $this->logger->info("Found $running resisting processes of {$worker->getName()} - $try seconds until slaughter");
                 }

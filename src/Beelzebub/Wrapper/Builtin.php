@@ -3,12 +3,12 @@
  * This class is part of Beelzebub
  */
 
-namespace Fortrabbit\Beelzebub\Wrapper;
+namespace Beelzebub\Wrapper;
 
 /**
  * Wrapper class for some built-in methods which shall be mocked
  *
- * @package Fortrabbit\Beelzebub\Wrapper
+ * @package Beelzebub\Wrapper
  */
 class Builtin
 {
@@ -29,6 +29,16 @@ class Builtin
     public static function doSleep($seconds)
     {
         sleep($seconds);
+    }
+
+    /**
+     * Wraps usleep() method
+     *
+     * @param int $nanoseconds
+     */
+    public static function doUsleep($nanoseconds)
+    {
+        usleep($nanoseconds);
     }
 
 }

@@ -3,8 +3,10 @@
  * This class is part of Beelzebub
  */
 
+namespace Beelzebub\Tests;
+
 use AspectMock\Proxy\ClassProxy;
-use Fortrabbit\Beelzebub\DefaultDaemon;
+use Beelzebub\DefaultDaemon;
 use Mockery as m;
 use AspectMock\Test as test;
 
@@ -88,7 +90,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
     public function testRegisterNewWorker()
     {
         $daemon = new DefaultDaemon($this->manager, $this->logger);
-        $worker = m::mock('\Fortrabbit\Beelzebub\Worker');
+        $worker = m::mock('\Beelzebub\Worker');
         $worker->shouldReceive('getName')
             ->once()
             ->andReturn('name');
@@ -107,11 +109,11 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
     public function testCannotAddTwoWorkersWithSameName()
     {
         $daemon  = new DefaultDaemon($this->manager, $this->logger);
-        $worker1 = m::mock('\Fortrabbit\Beelzebub\Worker');
+        $worker1 = m::mock('\Beelzebub\Worker');
         $worker1->shouldReceive('getName')
             ->once()
             ->andReturn('name');
-        $worker2 = m::mock('\Fortrabbit\Beelzebub\Worker');
+        $worker2 = m::mock('\Beelzebub\Worker');
         $worker2->shouldReceive('getName')
             ->once()
             ->andReturn('name');
@@ -230,9 +232,16 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
 
                 return $fork;
             });
+        $this->worker->shouldReceive('hasStartup')
+            ->once()
+            ->withNoArgs()
+            ->andReturn(true);
+        $this->worker->shouldReceive('runStartup')
+            ->once()
+            ->withNoArgs();
         $this->worker->shouldReceive('runLoop')
             ->once()
-            ->with($this->daemon);
+            ->withNoArgs();
         $self = & $this;
         $fork->shouldReceive('then')
             ->once()
@@ -324,7 +333,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->builtin->verifyInvokedOnce('doSleep');
     }
 
-    /*public function testShutdownDaemonWithRunningResistingWorker()
+    public function testShutdownDaemonWithRunningResistingWorker()
     {
         $this->initDaemonWithWorker();
         $this->worker->shouldReceive('getPids')
@@ -336,11 +345,11 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->daemon->addWorker($this->worker);
         $this->daemon->handleParentShutdownSignal(SIGTERM);
 
-        $this->posix->verifyInvokedMultipleTimes(6, 'kill', 123);
+        $this->posix->verifyInvokedMultipleTimes('kill', 34, 123);
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyInvokedOnce('doExit');
-        $this->builtin->verifyInvokedMultipleTimes(30, 'doSleep');
-    }*/
+        $this->builtin->verifyInvokedMultipleTimes('doSleep', 30);
+    }
 
     public function testShutdownDaemonWithRunningAbidingWorker()
     {
@@ -354,42 +363,45 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
         $this->daemon->addWorker($this->worker);
         $this->daemon->handleParentShutdownSignal(SIGTERM);
 
-        $this->posix->verifyInvokedMultipleTimes(6, 'kill', 123);
+        $this->posix->verifyInvokedMultipleTimes('kill', 1, 123);
         $this->pcntl->verifyNeverInvoked('signal');
         $this->builtin->verifyInvokedOnce('doExit');
         $this->builtin->verifyInvokedMultipleTimes(30, 'doSleep');
     }
 
-    /*public function testRunDaemonLoopWithSufficientWorkers()
+    public function testShutdownDaemonWithRunningFromWorker()
     {
-
         $this->initDaemonWithWorker();
-        $this->worker->shouldReceive('getPids')
-            ->once()
-            ->andReturn([123]);
-        $this->worker->shouldReceive('getAmount')
-            ->once()
-            ->andReturn(1);
-        $this->worker->shouldReceive('countRunning')
-            ->once()
-            ->andReturn(1);
-        $this->manager->shouldReceive('fork')
-            ->never();
-        $this->daemon->addWorker($this->worker);
-        $this->daemon->loop(1);
+        $this->daemon->handleWorkerShutdownSignal(SIGTERM);
 
-        //$this->pcntl->verifyInvokedOnce('signal');
-        $this->posix->verifyInvokedOnce('kill', array(123, 0));
-        //$this->builtin->verifyInvokedOnce('doExit');
+        $this->posix->verifyNeverInvoked('kill');
+        $this->pcntl->verifyNeverInvoked('signal');
+        $this->builtin->verifyInvokedOnce('doExit');
+        $this->builtin->verifyNeverInvoked('doSleep');
+    }
 
-    }*/
+    public function testGetSetRestartSignal()
+    {
+        $this->initDaemonWithWorker();
+        $this->daemon->setRestartSignal(SIGINT);
+        $this->assertSame(SIGINT, $this->daemon->getRestartSignal());
+        $this->daemon->setRestartSignal(SIGTERM);
+        $this->assertSame(SIGTERM, $this->daemon->getRestartSignal());
+
+        $this->posix->verifyNeverInvoked('kill');
+        $this->pcntl->verifyNeverInvoked('signal');
+        $this->builtin->verifyNeverInvoked('doExit');
+        $this->builtin->verifyNeverInvoked('doSleep');
+    }
+
+
 
     /**
      * @return ClassProxy
      */
     private function getPcntlDouble()
     {
-        return test::double('Fortrabbit\Beelzebub\Wrapper\Pcntl', array(
+        return test::double('Beelzebub\Wrapper\Pcntl', array(
             'signal' => true
         ));
     }
@@ -399,7 +411,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
      */
     private function getPosixDouble($result = true)
     {
-        return test::double('Fortrabbit\Beelzebub\Wrapper\Posix', array(
+        return test::double('Beelzebub\Wrapper\Posix', array(
             'kill' => $result
         ));
     }
@@ -409,7 +421,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
      */
     private function getBuiltinDouble()
     {
-        return test::double('Fortrabbit\Beelzebub\Wrapper\Builtin', array(
+        return test::double('Beelzebub\Wrapper\Builtin', array(
             'doExit'  => null,
             'doSleep' => null,
         ));
@@ -418,7 +430,7 @@ class DefaultDaemonTest extends \PHPUnit_Framework_TestCase
     private function initDaemonWithWorker()
     {
         $this->daemon = new DefaultDaemon($this->manager, $this->logger);
-        $this->worker = m::mock('\Fortrabbit\Beelzebub\Worker');
+        $this->worker = m::mock('\Beelzebub\Worker');
         $this->worker->shouldReceive('getName')
             ->atLeast(1)
             ->withNoArgs()

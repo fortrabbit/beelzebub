@@ -1,7 +1,7 @@
 <?php
 
 $loader = require_once __DIR__ . '/../vendor/autoload.php';
-$loader->add('\\Fortrabbit\\Beelzebub\\Tests\\', __DIR__ . '/tests');
+$loader->add('\\Beelzebub\\Tests\\', __DIR__ . '/tests');
 $loader->register();
 
 $kernel = \AspectMock\Kernel::getInstance();

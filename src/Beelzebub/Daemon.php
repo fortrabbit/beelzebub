@@ -10,7 +10,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Fortrabbit\Beelzebub;
+namespace Beelzebub;
 
 use Monolog\Logger;
 

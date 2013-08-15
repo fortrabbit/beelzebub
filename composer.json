@@ -20,7 +20,8 @@
         "ext-pcntl": "*",
         "ext-posix": "*",
         "monolog/monolog": "1.5.0",
-        "kriswallsmith/spork": "@dev"
+        "kriswallsmith/spork": "@dev",
+        "phpunit/phpunit": "3.7.*"
     },
     "require-dev": {
         "mockery/mockery": "@dev",
@@ -29,7 +30,7 @@
     },
     "autoload": {
         "psr-0": {
-            "Fortrabbit\\Beelzebub\\": "src/"
+            "Beelzebub\\": "src/"
         }
     }
 }

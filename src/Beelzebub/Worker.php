@@ -10,9 +10,9 @@
  * file that was distributed with this source code.
  */
 
-namespace Fortrabbit\Beelzebub;
+namespace Beelzebub;
 
-use Fortrabbit\Beelzebub\Daemon;
+use Beelzebub\Daemon;
 
 /**
  * Base class for daemon
@@ -26,21 +26,21 @@ interface Worker
     /**
      * Constructor
      *
+     * @param Daemon   $daemon   The daemon it shall run in
      * @param string   $name     Name of the worker
-     * @param int      $interval Interval this worker is to be called
-     * @param callback $loop Implementation of the worker
-     * @param callback $startup  To be called once at startup
+     * @param int      $interval Wait interval after each run
+     * @param \Closure $loop     Loop callback of the worker
+     * @param \Closure $startup  Optional startup callback of the worker
      * @param int      $amount   Amount of instances to run
      */
-    public function __construct($name, $interval, $loop, $startup = null, $amount = 1);
+    public function __construct(Daemon $daemon, $name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1);
 
     /**
      * Run worker loop callback
      *
-     * @param Daemon &$daemon The paren daemon
-     * @param array                       $args    Args from startup
+     * @param array $args    Args from startup
      */
-    public function runLoop(Daemon &$daemon, array $args = array());
+    public function runLoop(array $args = array());
 
     /**
      * Checks whether worker has startup method
@@ -52,11 +52,9 @@ interface Worker
     /**
      * Run the actual startup method
      *
-     * @param Daemon &$daemon The paren daemon
-     *
      * @return bool
      */
-    public function runStartup(Daemon &$daemon);
+    public function runStartup();
 
     /**
      * Getter for name
@@ -64,20 +62,6 @@ interface Worker
      * @return string
      */
     public function getName();
-
-    /**
-     * Getter for interval
-     *
-     * @return int
-     */
-    public function getInterval();
-
-    /**
-     * Setter for interval
-     *
-     * @param int $interval New interval in seconds
-     */
-    public function setInterval($interval);
 
     /**
      * Getter for amount
@@ -92,6 +76,13 @@ interface Worker
      * @param int $amount New amount
      */
     public function setAmount($amount);
+
+    /**
+     * Returns wait-interval after each worker run
+     *
+     * @return int
+     */
+    public function getInterval();
 
     /**
      * Add pid to pid list .. called from Daemon

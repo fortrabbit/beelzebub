@@ -3,7 +3,7 @@
  * This class is part of Beelzebub
  */
 
-namespace Fortrabbit\Beelzebub\Wrapper;
+namespace Beelzebub\Wrapper;
 
 
 /**

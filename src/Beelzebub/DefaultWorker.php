@@ -10,10 +10,10 @@
  * file that was distributed with this source code.
  */
 
-namespace Fortrabbit\Beelzebub;
+namespace Beelzebub;
 
-use Fortrabbit\Beelzebub\Daemon;
-use Fortrabbit\Beelzebub\Worker;
+use Beelzebub\Daemon;
+use Beelzebub\Worker;
 
 /**
  * Base class for Worker
@@ -23,6 +23,11 @@ use Fortrabbit\Beelzebub\Worker;
 
 class DefaultWorker implements Worker
 {
+
+    /**
+     * @var Daemon
+     */
+    protected $daemon;
 
     /**
      * @var string
@@ -40,12 +45,12 @@ class DefaultWorker implements Worker
     protected $amount;
 
     /**
-     * @var callback
+     * @var \Closure
      */
     protected $loop;
 
     /**
-     * @var callback
+     * @var \Closure
      */
     protected $startup;
 
@@ -57,11 +62,12 @@ class DefaultWorker implements Worker
     /**
      * {@inheritdoc}
      */
-    public function __construct($name, $interval, $loop, $startup = null, $amount = 1)
+    public function __construct(Daemon $daemon, $name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1)
     {
+        $this->daemon   = $daemon;
         $this->name     = $name;
-        $this->interval = $interval;
         $this->loop     = $loop;
+        $this->interval = $interval;
         $this->startup  = $startup;
         $this->amount   = $amount ? : 1;
         $this->pids     = array();
@@ -70,12 +76,11 @@ class DefaultWorker implements Worker
     /**
      * Run worker loop callback
      *
-     * @param DefaultDaemon $daemon The paren daemon
-     * @param array  $args   Args from startup
+     * @param array $args   Args from startup
      */
-    public function runLoop(Daemon &$daemon, array $args = array())
+    public function runLoop(array $args = array())
     {
-        $callArgs = array(&$this, &$daemon);
+        $callArgs = array($this);
         if ($args) {
             $callArgs[] = $args;
         }
@@ -95,17 +100,25 @@ class DefaultWorker implements Worker
     /**
      * Run the actual startup method
      *
-     * @param DefaultDaemon &$daemon The paren daemon
-     *
      * @return bool
      */
-    public function runStartup(Daemon &$daemon)
+    public function runStartup()
     {
         if ($this->startup) {
-            return call_user_func_array($this->startup, array($this, $daemon));
+            return call_user_func_array($this->startup, array($this));
         } else {
             return null;
         }
+    }
+
+    /**
+     * Getter for daemon
+     *
+     * @return Daemon
+     */
+    public function getDaemon()
+    {
+        return $this->daemon;
     }
 
     /**
@@ -126,16 +139,6 @@ class DefaultWorker implements Worker
     public function getInterval()
     {
         return $this->interval;
-    }
-
-    /**
-     * Setter for interval
-     *
-     * @param int $interval New interval in seconds
-     */
-    public function setInterval($interval)
-    {
-        $this->interval = $interval;
     }
 
     /**
