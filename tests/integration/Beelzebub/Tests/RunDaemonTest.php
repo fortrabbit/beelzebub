@@ -28,10 +28,13 @@ class RunDaemonTest extends PHPUnit_Framework_TestCase
         $worker1    = new DefaultWorker('worker1', function (Worker $w) use ($logger) {
             pcntl_signal(SIGQUIT, SIG_IGN);
             pcntl_signal(SIGINT, SIG_IGN);
-            //$logger->info("Called from worker");
-            error_log("CALLED FROM WORKER");
+            error_log("CALLED FROM WORKER 1");
+        });
+        $worker2    = new DefaultWorker('worker2', function (Worker $w) use ($logger) {
+            error_log("CALLED FROM WORKER 2");
         });
         $daemon->addWorker($worker1);
+        $daemon->addWorker($worker2);
         $daemon->loop();
     }
 

@@ -40,11 +40,6 @@ class DefaultWorker implements Worker
     protected $interval;
 
     /**
-     * @var int
-     */
-    protected $amount;
-
-    /**
      * @var \Closure
      */
     protected $loop;
@@ -62,13 +57,12 @@ class DefaultWorker implements Worker
     /**
      * {@inheritdoc}
      */
-    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1)
+    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null)
     {
         $this->name     = $name;
         $this->loop     = $loop;
         $this->interval = $interval;
         $this->startup  = $startup;
-        $this->amount   = $amount ? : 1;
     }
 
     /**
@@ -133,14 +127,6 @@ class DefaultWorker implements Worker
     public function getInterval()
     {
         return $this->interval;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getAmount()
-    {
-        return $this->amount;
     }
 
     /**

@@ -31,9 +31,8 @@ interface Worker
      * @param int      $interval Wait interval after each run
      * @param \Closure $loop     Loop callback of the worker
      * @param \Closure $startup  Optional startup callback of the worker
-     * @param int      $amount   Amount of instances to run
      */
-    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null, $amount = 1);
+    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null);
 
     /**
      * Set daemon after added
@@ -69,20 +68,6 @@ interface Worker
      * @return string
      */
     public function getName();
-
-    /**
-     * Getter for amount
-     *
-     * @return int
-     */
-    public function getAmount();
-
-    /**
-     * Setter for amount
-     *
-     * @param int $amount New amount
-     */
-    public function setAmount($amount);
 
     /**
      * Returns wait-interval after each worker run
