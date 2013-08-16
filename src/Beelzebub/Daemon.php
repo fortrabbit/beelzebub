@@ -13,6 +13,8 @@
 namespace Beelzebub;
 
 use Monolog\Logger;
+use Spork\ProcessManager;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 declare(ticks = 1);
 
@@ -24,6 +26,46 @@ declare(ticks = 1);
 
 interface Daemon
 {
+
+    const DEFAULT_SHUTDOWN_TIMEOUT = 30;
+    const DEFAULT_SHUTDOWN_SIGNAL  = SIGQUIT;
+
+    /**
+     * Create new daemon instance
+     *
+     * @param ProcessManager           $manager
+     * @param Logger                   $logger
+     * @param EventDispatcherInterface $event
+     */
+    public function __construct(ProcessManager $manager, Logger $logger, EventDispatcherInterface $event);
+
+    /**
+     * Add worker to daemon
+     *
+     * @param Worker $worker
+     */
+    public function addWorker(Worker $worker);
+
+    /**
+     * Executes daemon by starting all childs processes
+     *
+     * @param int|bool $iterations If true, run infinite
+     */
+    public function run($iterations = true);
+
+    /**
+     * Set shutdown signal.. something like SIGINT, SIGTERM, ..
+     *
+     * @parma int $signo
+     */
+    public function setShutdownSignal($signo);
+
+    /**
+     * Set shutdown timeout in seconds (until workers are killed with SIGKILL)
+     *
+     * @param int $seconds
+     */
+    public function setShutdownTimeout($seconds);
 
 
 }

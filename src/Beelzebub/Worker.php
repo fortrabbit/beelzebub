@@ -29,10 +29,11 @@ interface Worker
      *
      * @param string   $name     Name of the worker
      * @param int      $interval Wait interval after each run
-     * @param \Closure $loop     Loop callback of the worker
-     * @param \Closure $startup  Optional startup callback of the worker
+     * @param callable $loop     Loop callback of the worker
+     * @param callable $startup  Optional startup callback of the worker
+     * @param int      $amount   Amount of forks
      */
-    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null);
+    public function __construct($name, $loop, $interval = 1, $startup = null, $amount);
 
     /**
      * Set daemon after added
@@ -46,7 +47,7 @@ interface Worker
      *
      * @param array $args    Args from startup
      */
-    public function runLoop(array $args = array());
+    public function run(array $args = array());
 
     /**
      * Checks whether worker has startup method
@@ -70,11 +71,32 @@ interface Worker
     public function getName();
 
     /**
+     * Set wait interval after each loop-run
+     *
+     * @param int $interval
+     */
+    public function setInterval($interval);
+
+    /**
      * Returns wait-interval after each worker run
      *
      * @return int
      */
     public function getInterval();
+
+    /**
+     * Set should-amount of processes
+     *
+     * @param int $amount
+     */
+    public function setAmount($amount);
+
+    /**
+     * Returns should-amount of instances/process
+     *
+     * @return int
+     */
+    public function getAmount();
 
 
 }

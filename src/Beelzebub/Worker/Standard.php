@@ -10,7 +10,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Beelzebub;
+namespace Beelzebub\Worker;
 
 use Beelzebub\Daemon;
 use Beelzebub\Worker;
@@ -21,7 +21,7 @@ use Beelzebub\Worker;
  * @author Ulrich Kautz <uk@fortrabbit.com>
  */
 
-class DefaultWorker implements Worker
+class Standard implements Worker
 {
 
     /**
@@ -40,12 +40,17 @@ class DefaultWorker implements Worker
     protected $interval;
 
     /**
-     * @var \Closure
+     * @var int
+     */
+    protected $amount;
+
+    /**
+     * @var callable
      */
     protected $loop;
 
     /**
-     * @var \Closure
+     * @var callable
      */
     protected $startup;
 
@@ -57,18 +62,27 @@ class DefaultWorker implements Worker
     /**
      * {@inheritdoc}
      */
-    public function __construct($name, \Closure $loop, $interval = 1, \Closure $startup = null)
+    public function __construct($name, $loop, $interval = 1, $startup = null, $amount = 1)
     {
+        // for < 5.4, we cannot use type hints
+        if (!is_callable($loop)) {
+            throw new \InvalidArgumentException("Loop needs to be callable");
+        }
+        if (!is_null($startup) && !is_callable($loop)) {
+            throw new \InvalidArgumentException("Startup needs to be callable");
+        }
         $this->name     = $name;
         $this->loop     = $loop;
-        $this->interval = $interval;
+        $this->interval = $interval ?: 1;
         $this->startup  = $startup;
+        error_log("CREATE WORKER WITH AMOUNT $amount");
+        $this->amount   = $amount ?: 1;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function runLoop(array $args = array())
+    public function run(array $args = array())
     {
         $callArgs = array($this);
         if ($args) {
@@ -124,6 +138,14 @@ class DefaultWorker implements Worker
     /**
      * {@inheritdoc}
      */
+    public function setInterval($interval)
+    {
+        $this->interval = $interval;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getInterval()
     {
         return $this->interval;
@@ -134,7 +156,15 @@ class DefaultWorker implements Worker
      */
     public function setAmount($amount)
     {
-        return $this->amount = $amount;
+        $this->amount = $amount;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getAmount()
+    {
+        return $this->amount;
     }
 
 }

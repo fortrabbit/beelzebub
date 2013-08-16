@@ -18,7 +18,7 @@ If you are looking for a single process daemon framework, have a look at [clio](
     $daemon = new Daemon("simple", "1.0.0");
     $daemon->registerWorker(array(
         'do-something' => array(
-            'loop' => function (WorkerInterface &$w, DaemonInterface &$d) {
+            'run' => function (WorkerInterface &$w, DaemonInterface &$d) {
                 $d->getLogger()->info("Doing something");
             },
             'interval' => 30
@@ -27,7 +27,7 @@ If you are looking for a single process daemon framework, have a look at [clio](
             'startup' => function(WorkerInterface &$worker, DaemonInterface &$d) {
                 $d->getLogger()->info("Staring up something else");
             },
-            'loop' => function (WorkerInterface &$w, DaemonInterface &$d) {
+            'run' => function (WorkerInterface &$w, DaemonInterface &$d) {
                 $d->getLogger()->info("Doing something else");
             },
             'interval' => 5,
@@ -60,17 +60,17 @@ If you are looking for a single process daemon framework, have a look at [clio](
         // unique name of the worker
         'worker-name' => array(
 
-            // opt: startup method, called before first loop
+            // opt: startup method, called before first run
             'startup' => function (WorkerInterface &$w, DaemonInterface &$d) {
                 // ..
             },
 
-            // req: the loop method, called every [interval]
-            'loop' => function (WorkerInterface &$w, DaemonInterface &$d) {
+            // req: the run method, called every [interval]
+            'run' => function (WorkerInterface &$w, DaemonInterface &$d) {
                 // ..
             },
 
-            // req: the interval between calling the loop in seconds
+            // req: the interval between calling the run in seconds
             'interval' => 30,
 
             // opt: amount of instances (default: 1)

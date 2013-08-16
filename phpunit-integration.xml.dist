@@ -12,7 +12,7 @@
 >
     <testsuites>
         <testsuite name="Application Test Suite">
-            <directory>./tests/integration/</directory>
+            <directory>tests/integration/</directory>
         </testsuite>
     </testsuites>
     <filter>

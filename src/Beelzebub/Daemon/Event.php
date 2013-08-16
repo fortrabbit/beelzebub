@@ -3,12 +3,12 @@
  * This class is part of Beelzebub
  */
 
-namespace Beelzebub;
+namespace Beelzebub\Daemon;
 
 
 use Symfony\Component\EventDispatcher\GenericEvent;
 
-class DaemonEvent extends GenericEvent
+class Event extends GenericEvent
 {
 
 }
