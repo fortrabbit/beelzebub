@@ -14,6 +14,7 @@ namespace Beelzebub\Worker;
 
 use Beelzebub\Daemon;
 use Beelzebub\Worker;
+use Spork\Fork;
 
 /**
  * Base class for Worker
@@ -62,21 +63,20 @@ class Standard implements Worker
     /**
      * {@inheritdoc}
      */
-    public function __construct($name, $loop, $interval = 1, $startup = null, $amount = 1)
+    public function __construct($name, $loop, $interval = self::DEFAULT_INTERVAL, $startup = null, $amount = self::DEFAULT_AMOUNT)
     {
         // for < 5.4, we cannot use type hints
         if (!is_callable($loop)) {
-            throw new \InvalidArgumentException("Loop needs to be callable");
+            throw new \BadMethodCallException("Loop needs to be callable");
         }
-        if (!is_null($startup) && !is_callable($loop)) {
-            throw new \InvalidArgumentException("Startup needs to be callable");
+        if (!is_null($startup) && !is_callable($startup)) {
+            throw new \BadMethodCallException("Startup needs to be callable");
         }
         $this->name     = $name;
         $this->loop     = $loop;
-        $this->interval = $interval ?: 1;
+        $this->interval = $interval ? : self::DEFAULT_INTERVAL;
         $this->startup  = $startup;
-        error_log("CREATE WORKER WITH AMOUNT $amount");
-        $this->amount   = $amount ?: 1;
+        $this->amount   = $amount ? : self::DEFAULT_AMOUNT;
     }
 
     /**
@@ -84,10 +84,7 @@ class Standard implements Worker
      */
     public function run(array $args = array())
     {
-        $callArgs = array($this);
-        if ($args) {
-            $callArgs[] = $args;
-        }
+        $callArgs = array($this, $args);
         call_user_func_array($this->loop, $callArgs);
     }
 

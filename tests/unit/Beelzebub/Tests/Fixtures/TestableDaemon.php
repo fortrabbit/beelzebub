@@ -6,6 +6,8 @@
 namespace Beelzebub\Tests\Fixtures;
 
 use Beelzebub\Daemon\Standard;
+use Beelzebub\Worker;
+use Spork\Fork;
 
 class TestableDaemon extends Standard
 {
@@ -15,14 +17,9 @@ class TestableDaemon extends Standard
         $this->stopped = true;
     }
 
-    public function getShutdownTimeout()
+    public function isStopped()
     {
-        return $this->shutdownTimeout;
-    }
-
-    public function getShutdownSignal()
-    {
-        return $this->shutdownSignal;
+        return $this->stopped;
     }
 
     public function getWorkers()
@@ -44,6 +41,11 @@ class TestableDaemon extends Standard
     public function setForks($name, array $forks)
     {
         $this->forks[$name] = $forks;
+    }
+
+    public function setCurrentWorker(Worker $worker)
+    {
+        $this->currentWorker = $worker;
     }
 
 }

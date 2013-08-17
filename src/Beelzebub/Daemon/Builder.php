@@ -25,7 +25,7 @@ class Builder
 {
 
     /**
-     * @var array
+     * @var Worker[]
      */
     protected $workers;
 
@@ -62,31 +62,63 @@ class Builder
     /**
      * Create Daemon
      *
-     * @param array  $workers
-     * @param string $class
-     *
-     * @throws \BadMethodCallException
+     * @param array $workers
      */
-    public function __construct(array $workers = array(), $class = null)
+    public function __construct(array $workers = array())
     {
-        if (!is_null($class) && !class_exists($class)) {
-            throw new \BadMethodCallException("Daemon class '$class' not existing");
+        $this->workers = array();
+        if ($workers) {
+            foreach ($workers as $name => $definition) {
+                $this->addWorker($name, $definition);
+            }
         }
-        $this->class   = $class;
-        $this->workers = $workers;
     }
 
     /**
      * Add worker definition
      *
-     * @param                       $name
+     * @param string                $name
      * @param array|callable|Worker $definition
      *
      * @return Builder
      */
     public function addWorker($name, $definition)
     {
-        $this->workers[$name] = $definition;
+        // method
+        if (is_callable($definition)) {
+            $worker = $this->createWorkerFromCallable($name, $definition);
+        } // array('loop' => function () {}, ...)
+        elseif (is_array($definition)) {
+            $worker = $this->createWorkerFromArray($name, $definition);
+        } // Worker object
+        elseif (is_object($definition)) {
+            $worker = $this->createWorkerFromObject($name, $definition);
+        } // fail
+        else {
+            throw new \BadMethodCallException("Worker '$name' uses unsupported definition (" . gettype($definition) . ")");
+        }
+        $this->workers[$name] = $worker;
+
+        return $this;
+    }
+
+    /**
+     * Set different daemon class
+     *
+     * @param $class
+     *
+     * @throws \BadMethodCallException
+     *
+     * @return Builder
+     */
+    public function setDaemonClass($class)
+    {
+
+        if (!in_array('Beelzebub\Daemon', class_implements($class))) {
+            throw new \BadMethodCallException("Class '$class' does not implement the \\Beelzebub\\Daemon interface");
+        }
+
+        $this->class = $class;
 
         return $this;
     }
@@ -169,19 +201,7 @@ class Builder
      */
     public function build()
     {
-        if (!$this->manager) {
-            $this->manager = new ProcessManager();
-        }
-        if (!$this->logger) {
-            $handler      = new NullHandler();
-            $this->logger = new Logger('null', array($handler));
-        }
-        if (!$this->events) {
-            $this->events = new EventDispatcher();
-        }
-        if (!$this->class) {
-            $this->class = '\\Beelzebub\\Daemon\\Standard';
-        }
+        $this->assureDefaults();
 
         $class = $this->class;
 
@@ -196,41 +216,106 @@ class Builder
             $daemon->setShutdownTimeout($this->shutdownTimeout);
         }
 
-        // add all the workers from definition
-        foreach ($this->workers as $name => $definition) {
-
-            // callable -> generate standard worker
-            if (is_callable($definition)) {
-                $worker = new StandardWorker($name, $definition);
-            } // array('loop' => function () {}, ...)
-            elseif (is_array($definition)) {
-                if (!isset($definition['loop'])) {
-                    throw new \BadMethodCallException("Worker '$name' is missing the loop definition");
-                }
-                // $name, $loop, $interval = 1, $startup = null, $amount = 1
-                $loop        = $definition['loop'];
-                $interval    = isset($definition['interval']) ? $definition['interval'] : null;
-                $startup     = isset($definition['startup']) ? $definition['startup'] : null;
-                $amount      = isset($definition['amount']) ? $definition['amount'] : null;
-                $workerClass = isset($definition['class']) ? $definition['class'] : '\\Beelzebub\\Worker\\Standard';
-                $worker      = new $workerClass($name, $loop, $interval, $startup, $amount);
-            } // Worker object
-            elseif (is_object($definition)) {
-                if (!($definition instanceof Worker)) {
-                    throw new \BadMethodCallException(
-                        "Worker '$name' is of class '" . get_class($definition) . "' which does not implement \\Beelzebub\\Worker"
-                    );
-                }
-                $worker = $definition;
-            } // fail
-            else {
-                throw new \BadMethodCallException("Worker '$name' uses unsupported definition (" . gettype($definition) . ")");
-            }
+        foreach ($this->workers as $worker) {
             $daemon->addWorker($worker);
         }
 
         return $daemon;
+    }
 
+    /**
+     * All created workers
+     *
+     * @return Worker[]
+     */
+    public function getWorkers()
+    {
+        return $this->workers;
+    }
+
+    /**
+     * Create a new worker from callable
+     *
+     * @param string   $name
+     * @param callable $definition
+     *
+     * @return StandardWorker
+     */
+    protected function createWorkerFromCallable($name, $definition)
+    {
+        return new StandardWorker($name, $definition);
+    }
+
+    /**
+     * Create a new worker from array definition
+     *
+     * @param string $name
+     * @param array  $definition
+     *
+     * @return Worker
+     * @throws \BadMethodCallException
+     */
+    protected function createWorkerFromArray($name, array $definition)
+    {
+        if (!isset($definition['loop'])) {
+            throw new \BadMethodCallException("Worker '$name' is missing the loop definition");
+        }
+        // $name, $loop, $interval = 1, $startup = null, $amount = 1
+        $loop        = $definition['loop'];
+        $interval    = isset($definition['interval']) ? $definition['interval'] : null;
+        $startup     = isset($definition['startup']) ? $definition['startup'] : null;
+        $amount      = isset($definition['amount']) ? $definition['amount'] : null;
+        $workerClass = isset($definition['class']) ? $definition['class'] : '\\Beelzebub\\Worker\\Standard';
+
+        if (!in_array('Beelzebub\Worker', class_implements($workerClass))) {
+            throw new \BadMethodCallException("Class '$workerClass' of worker '$name' does not implement the \\Beelzebub\\Worker interface");
+        }
+
+        return new $workerClass($name, $loop, $interval, $startup, $amount);
+    }
+
+    /**
+     * Create a new worker from object
+     *
+     * @param $name
+     * @param $definition
+     *
+     * @return Worker
+     * @throws \BadMethodCallException
+     */
+    protected function createWorkerFromObject($name, $definition)
+    {
+        if (!($definition instanceof Worker)) {
+            throw new \BadMethodCallException(
+                "Worker '$name' is of class '" . get_class($definition) . "' which does not implement \\Beelzebub\\Worker"
+            );
+        }
+
+        if ($definition->getName() !== $name) {
+            throw new \BadMethodCallException("Worker name '{$definition->getName()}' and register name '$name' do not match");
+        }
+
+        return $definition;
+    }
+
+    /**
+     * Sets up defaults for process manager, logger and event dispatcher, if not given
+     */
+    protected function assureDefaults()
+    {
+        if (!$this->manager) {
+            $this->manager = new ProcessManager();
+        }
+        if (!$this->logger) {
+            $handler      = new NullHandler();
+            $this->logger = new Logger('null', array($handler));
+        }
+        if (!$this->events) {
+            $this->events = new EventDispatcher();
+        }
+        if (!$this->class) {
+            $this->class = '\\Beelzebub\\Daemon\\Standard';
+        }
     }
 
 

@@ -19,6 +19,7 @@ use Beelzebub\Wrapper\Pcntl;
 use Beelzebub\Wrapper\Posix;
 use Monolog\Logger;
 use Spork\Exception\ProcessControlException;
+use Spork\Fifo;
 use Spork\Fork;
 use Spork\ProcessManager;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -75,6 +76,8 @@ class Standard implements Daemon
     protected $shutdownTimeout;
 
     /**
+     * The worker running in a child process
+     *
      * @var Worker
      */
     protected $currentWorker;
@@ -117,9 +120,7 @@ class Standard implements Daemon
         while (true) {
             foreach ($this->workers as $worker) {
                 $this->logger->debug("Run instances of {$worker->getName()}");
-                $this->event->dispatch('worker.pre-start', new Event($worker));
                 $this->assureWorkerForkRunning($worker);
-                $this->event->dispatch('worker.post-start', new Event($worker));
             }
             if ($iterations !== true && --$iterations === 0) {
                 break;
@@ -129,7 +130,6 @@ class Standard implements Daemon
             for ($i = 0; $i < $interval; $i++) {
                 BuiltIn::doUsleep(100000);
                 if ($this->stopped) {
-                    $this->event->dispatch('daemon.stopping', new Event($this));
                     break 2;
                 }
             }
@@ -141,7 +141,7 @@ class Standard implements Daemon
      *
      * @param int $signo
      */
-    public function handleParentShutdownSignal($signo)
+    public function handleDaemonShutdownSignal($signo)
     {
         $this->logger->debug("Received SIG $signo in parent");
         switch ($signo) {
@@ -151,9 +151,9 @@ class Standard implements Daemon
                 if (!$this->stopped) {
                     $this->logger->info("Shutting down parent, sending shutdown to all workers");
                     $this->stopped = true;
-                    $this->event->dispatch('daemon.pre-shutdown', new Event($this));
+                    $this->event->dispatch(Event::EVENT_DAEMON_STOPPING, new Event($this));
                     $this->shutdownWorkersFromParent();
-                    $this->event->dispatch('daemon.post-shutdown', new Event($this));
+                    $this->event->dispatch(Event::EVENT_DAEMON_STOPPED, new Event($this));
                     Builtin::doExit();
                 }
                 break;
@@ -167,13 +167,14 @@ class Standard implements Daemon
      */
     public function handleWorkerShutdownSignal($signo)
     {
-        $this->logger->debug("Received SIG $signo in worker");
+        $this->logger->debug("Received SIG $signo in worker '{$this->currentWorker->getName()}' WITH PID " . getmypid());
         switch ($signo) {
             case SIGTERM:
             case SIGQUIT:
             case SIGINT:
-                $this->event->dispatch('daemon.child-pre-exit', new Event($this));
-                Builtin::doExit();
+                $this->stopped = true;
+                $this->event->dispatch(Event::EVENT_WORKER_STOPPING, new Event($this->currentWorker));
+                //Builtin::doExit();
                 break;
         }
     }
@@ -191,9 +192,49 @@ class Standard implements Daemon
     /**
      * {@inheritdoc}
      */
+    public function getShutdownSignal()
+    {
+        return $this->shutdownSignal;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function setShutdownTimeout($seconds)
     {
         $this->shutdownTimeout = $seconds;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getShutdownTimeout()
+    {
+        return $this->shutdownTimeout;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getProcessManager()
+    {
+        return $this->manager;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getLogger()
+    {
+        return $this->logger;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getEventDispatcher()
+    {
+        return $this->event;
     }
 
 
@@ -214,29 +255,37 @@ class Standard implements Daemon
             $this->forks[$name] = array();
         }
         for ($i = 0; $i < $diff; $i++) {
+            $this->event->dispatch(Event::EVENT_WORKER_STARTING, new Event($worker));
             $fork                                = $this->manager
                 ->fork(function () use ($worker, $self) {
+                    $this->currentWorker = $worker;
                     $self->bindWorkerSignals();
+                    $startupArgs = array();
                     if ($worker->hasStartup()) {
-                        $worker->runStartup();
+                        $startupArgs = $worker->runStartup();
+                        if (!is_array($startupArgs)) {
+                            $startupArgs = array($startupArgs);
+                        }
                     }
 
                     $intervals = $worker->getInterval() * 10;
                     while (true) {
-                        $worker->run();
+                        $worker->run($startupArgs);
 
                         for ($i = 0; $i < $intervals; $i++) {
                             Builtin::doUsleep(100000);
                             if ($self->stopped) {
+                                $this->event->dispatch(Event::EVENT_WORKER_STOPPED, new Event($this->currentWorker));
                                 break 2;
                             }
                         }
                     }
                 })
-                ->then(function () use ($name, $self) {
-                    unset($self->forks[$name]);
+                ->then(function (Fork $fork) use ($name, $self) {
+                    unset($self->forks[$fork->getPid()][$name]);
                 });
             $this->forks[$name][$fork->getPid()] = $fork;
+            $this->event->dispatch(Event::EVENT_WORKER_STARTED, new Event($worker), array($fork));
         }
     }
 
@@ -245,9 +294,9 @@ class Standard implements Daemon
      */
     protected function bindParentSignals()
     {
-        Pcntl::signal(SIGTERM, array($this, 'handleParentShutdownSignal'));
-        Pcntl::signal(SIGQUIT, array($this, 'handleParentShutdownSignal'));
-        Pcntl::signal(SIGINT, array($this, 'handleParentShutdownSignal'));
+        Pcntl::signal(SIGTERM, array($this, 'handleDaemonShutdownSignal'));
+        Pcntl::signal(SIGQUIT, array($this, 'handleDaemonShutdownSignal'));
+        Pcntl::signal(SIGINT, array($this, 'handleDaemonShutdownSignal'));
         Pcntl::signal(SIGCHLD, SIG_IGN);
     }
 
@@ -273,7 +322,6 @@ class Standard implements Daemon
         foreach ($this->workers as $worker) {
             $name = $worker->getName();
             if ($this->countRunning($name)) {
-                $this->event->dispatch('worker.shutdown', new Event($worker));
                 /** @var Fork $fork * */
                 foreach ($this->forks[$name] as $fork) {
                     $fork->kill($this->shutdownSignal);
@@ -302,9 +350,10 @@ class Standard implements Daemon
 
         // slaughter survivors
         /** @var Fork[] $forks */
-        foreach ($this->forks as $forks) {
+        foreach ($this->forks as $name => $forks) {
             foreach ($forks as $fork) {
                 if ($this->reallyRunning($fork)) {
+                    $this->event->dispatch(Event::EVENT_WORKER_KILL, new Event($this->workers[$name]), array($fork));
                     $fork->kill(SIGKILL);
                     try {
                         $fork->wait(true);

@@ -61,11 +61,46 @@ interface Daemon
     public function setShutdownSignal($signo);
 
     /**
+     * Get shutdown signal
+     *
+     * @return int
+     */
+    public function getShutdownSignal();
+
+    /**
      * Set shutdown timeout in seconds (until workers are killed with SIGKILL)
      *
      * @param int $seconds
      */
     public function setShutdownTimeout($seconds);
+
+    /**
+     * Get shutdown timeout seconds
+     *
+     * @return int
+     */
+    public function getShutdownTimeout();
+
+    /**
+     * Get the process manager
+     *
+     * @return ProcessManager
+     */
+    public function getProcessManager();
+
+    /**
+     * Get the logger
+     *
+     * @return Logger
+     */
+    public function getLogger();
+
+    /**
+     * Get the event dispatcher
+     *
+     * @return EventDispatcherInterface
+     */
+    public function getEventDispatcher();
 
 
 }

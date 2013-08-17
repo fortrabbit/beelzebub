@@ -24,6 +24,9 @@ use Spork\Fork;
 interface Worker
 {
 
+    const DEFAULT_INTERVAL = 10;
+    const DEFAULT_AMOUNT   = 1;
+
     /**
      * Constructor
      *
@@ -32,20 +35,15 @@ interface Worker
      * @param callable $loop     Loop callback of the worker
      * @param callable $startup  Optional startup callback of the worker
      * @param int      $amount   Amount of forks
-     */
-    public function __construct($name, $loop, $interval = 1, $startup = null, $amount);
-
-    /**
-     * Set daemon after added
      *
-     * @param Daemon $daemon
+     * @throws \BadMethodCallException
      */
-    public function setDaemon(Daemon $daemon);
+    public function __construct($name, $loop, $interval = self::DEFAULT_INTERVAL, $startup = null, $amount = self::DEFAULT_AMOUNT);
 
     /**
      * Run worker loop callback
      *
-     * @param array $args    Args from startup
+     * @param array $args Returned from startup
      */
     public function run(array $args = array());
 
@@ -69,6 +67,20 @@ interface Worker
      * @return string
      */
     public function getName();
+
+    /**
+     * Set daemon after added
+     *
+     * @param Daemon $daemon
+     */
+    public function setDaemon(Daemon $daemon);
+
+    /**
+     * Get's daemon
+     *
+     * @return Daemon
+     */
+    public function getDaemon();
 
     /**
      * Set wait interval after each loop-run

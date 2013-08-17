@@ -12,8 +12,7 @@ use AspectMock\Test as test;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
- * Class DefaultDaemonTest
- *
+ * Class DaemonTest
  */
 class DaemonTest extends \PHPUnit_Framework_TestCase
 {
@@ -98,6 +97,22 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
         $this->assertStaticCalls();
     }
 
+    public function testGetSetShutdownSignal()
+    {
+        $daemon = new TestableDaemon($this->manager, $this->logger, $this->events);
+        $this->assertSame(SIGQUIT, $daemon->getShutdownSignal());
+        $daemon->setShutdownSignal(SIGINT);
+        $this->assertSame(SIGINT, $daemon->getShutdownSignal());
+    }
+
+    public function testGetSetShutdownTimeout()
+    {
+        $daemon = new TestableDaemon($this->manager, $this->logger, $this->events);
+        $this->assertSame(30, $daemon->getShutdownTimeout());
+        $daemon->setShutdownTimeout(10);
+        $this->assertSame(10, $daemon->getShutdownTimeout());
+    }
+
     public function testAddSingleWorkerToDaemon()
     {
         $this->initDaemonWithWorker(false);
@@ -141,7 +156,7 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
         $events     = array();
         $eventCount = 0;
         $this->events->shouldReceive('dispatch')
-            ->twice()
+            ->times(3)
             ->andReturnUsing(function ($name) use (&$events, &$eventCount) {
                 $events[$name] = $eventCount++;
             });
@@ -160,7 +175,7 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
             ->never();
         $this->worker->shouldReceive('run')
             ->once()
-            ->withNoArgs();
+            ->withAnyArgs();
         $this->manager->shouldReceive('fork')
             ->once()
             ->andReturnUsing(function ($callback) use ($fork) {
@@ -178,8 +193,9 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
         $this->daemon->run(1);
         $this->assertEquals(array('worker-name' => array(123 => $fork)), $this->daemon->getForks());
         $this->assertSame(array(
-            'worker.pre-start'  => 0,
-            'worker.post-start' => 1
+            'worker.starting' => 0,
+            'worker.stopped'  => 1,
+            'worker.started'  => 2
         ), $events);
         $this->assertStaticCalls(array(
             'pcntl'   => array('signal' => 8),
@@ -215,7 +231,7 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
             ->withNoArgs();
         $this->worker->shouldReceive('run')
             ->once()
-            ->withNoArgs();
+            ->withAnyArgs();
         $fork = m::mock('\Spork\Fork');
         $this->manager->shouldReceive('fork')
             ->once()
@@ -235,9 +251,9 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
         $this->daemon->run(2);
         $this->assertEquals(array('worker-name' => array(123 => $fork)), $this->daemon->getForks());
         $this->assertSame(array(
-            'worker.pre-start'  => 0,
-            'worker.post-start' => 1,
-            'daemon.stopping'   => 2
+            'worker.starting' => 0,
+            'worker.stopped'  => 1,
+            'worker.started'  => 2,
         ), $events);
         $this->assertStaticCalls(array(
             'pcntl'   => array('signal' => 8),
@@ -264,17 +280,32 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
             ->once()
             ->with(true);
 
-        $this->daemon->handleParentShutdownSignal(SIGINT);
+        $this->daemon->handleDaemonShutdownSignal(SIGINT);
         $this->assertSame(array(
-            'daemon.pre-shutdown'  => 0,
-            'daemon.post-shutdown' => 1
+            'daemon.stopping' => 0,
+            'daemon.stopped'  => 1
         ), $events);
         $this->assertStaticCalls(array(
             'builtin' => array('doExit' => 1, 'doUsleep' => 0),
         ));
     }
 
-    public function testHandleParentShutdownWithExistingForks()
+    public function testHandleDaemonShutdownWithSIGINT()
+    {
+        $this->_testHandleDaemonShutdownWithExistingForks(SIGINT);
+    }
+
+    public function testHandleDaemonShutdownWithSIGTERM()
+    {
+        $this->_testHandleDaemonShutdownWithExistingForks(SIGTERM);
+    }
+
+    public function testHandleDaemonShutdownWithSIGQUIT()
+    {
+        $this->_testHandleDaemonShutdownWithExistingForks(SIGQUIT);
+    }
+
+    private function _testHandleDaemonShutdownWithExistingForks($signo)
     {
         $this->initDaemonWithWorker();
         $this->daemon->addWorker($this->worker);
@@ -319,16 +350,56 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
             ->once()
             ->with(true);
 
-        $this->daemon->handleParentShutdownSignal(SIGINT);
+        $this->daemon->handleDaemonShutdownSignal($signo);
         $this->assertSame(array(
-            'daemon.pre-shutdown'  => 0,
-            'worker.shutdown'      => 1,
-            'daemon.post-shutdown' => 2
+            'daemon.stopping' => 0,
+            'worker.kill'     => 1,
+            'daemon.stopped'  => 2
         ), $events);
         $this->assertStaticCalls(array(
             'builtin' => array('doExit' => 1, 'doUsleep' => 0),
             'posix'   => array('kill' => 0),
         ));
+    }
+
+    public function testHandleWorkerShutdownWithSIGINT()
+    {
+        $this->_testHandleWorkerShutdownWithExistingForks(SIGINT);
+    }
+
+    /*    public function testHandleWorkerShutdownWithSIGTERM()
+        {
+            $this->_testHandleWorkerShutdownWithExistingForks(SIGTERM);
+        }
+
+        public function testHandleWorkerShutdownWithSIGQUIT()
+        {
+            $this->_testHandleWorkerShutdownWithExistingForks(SIGQUIT);
+        }*/
+
+
+    private function _testHandleWorkerShutdownWithExistingForks($signo)
+    {
+        $this->initDaemonWithWorker();
+        $this->daemon->addWorker($this->worker);
+        $fork1 = m::mock('Spork\Fork');
+        $fork2 = m::mock('Spork\Fork');
+        $this->daemon->setForks('worker-name', array(123 => $fork1, 234 => $fork2));
+
+        $events     = array();
+        $eventCount = 0;
+        $this->events->shouldReceive('dispatch')
+            ->times(1)
+            ->andReturnUsing(function ($name) use (&$events, &$eventCount) {
+                $events[$name] = $eventCount++;
+            });
+
+        $this->daemon->setCurrentWorker($this->worker);
+        $this->daemon->handleWorkerShutdownSignal($signo);
+        $this->assertSame(array(
+            'worker.stopping' => 0,
+        ), $events);
+        $this->assertStaticCalls();
     }
 
 
