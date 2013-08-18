@@ -15,6 +15,7 @@ namespace Beelzebub\Daemon;
 use Beelzebub\Daemon;
 use Beelzebub\Worker;
 use Beelzebub\Wrapper\Builtin;
+use Beelzebub\Wrapper\File;
 use Beelzebub\Wrapper\Pcntl;
 use Beelzebub\Wrapper\Posix;
 use Monolog\Logger;
@@ -99,6 +100,16 @@ class Standard implements Daemon
     /**
      * {@inheritdoc}
      */
+    public function setName($name)
+    {
+        if (function_exists('setproctitle')) {
+            setproctitle($name);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function addWorker(Worker $worker)
     {
         $name = $worker->getName();
@@ -134,6 +145,101 @@ class Standard implements Daemon
                 }
             }
         }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function runDetached(File $pidfile)
+    {
+
+        if (($pid = $pidfile->contents())) {
+            if (!intval($pid)) {
+                throw new \RuntimeException("Could not find PID in {$pidfile->getPath()}");
+            }
+            if (Posix::kill($pid, 0)) {
+                throw new \RuntimeException("Cannot use pid file {$pidfile->getPath()}: found running pid $pid");
+            }
+        }
+
+        $self = & $this;
+        $fork = $this->manager->fork(function () use ($self) {
+            global $STDOUT, $STDERR, $STDIN;
+
+            if (-1 === Posix::setsid()) {
+                throw new \RuntimeException("Failed to become session leader");
+            }
+
+            // close all standard i/o
+            fclose(STDIN);
+            fclose(STDOUT);
+            fclose(STDERR);
+
+            // replace with null i/o
+            $STDIN  = fopen('/dev/null', 'r');
+            $STDOUT = fopen('/dev/null', 'ab');
+            $STDERR = fopen('/dev/null', 'ab');
+            $self->run();
+        });
+        $this->manager->zombieOkay(true);
+        if ($this->reallyRunning($fork)) {
+            $pidfile->contents($fork->getPid());
+
+            return $fork->getPid();
+
+        } else {
+            throw new \RuntimeException("Failed to fork");
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function halt(File $pidfile, $forceKill = false)
+    {
+
+        $pid = $pidfile->contents();
+        if (is_null($pid) || !strlen($pid)) {
+            $pidfile->remove();
+
+            return true;
+        }
+        if (!intval($pid)) {
+            throw new \RuntimeException("Cannot use {$pidfile->getPath()} contents as integer PID");
+        }
+
+        // already stopped
+        if (!Posix::kill($pid, 0)) {
+            $pidfile->remove();
+
+            return false;
+        }
+
+        // send kill & wait
+        Posix::kill($pid, $this->shutdownSignal);
+        $intervals = ($this->shutdownTimeout + 1) * 10;
+
+        $killed = false;
+        while ($intervals-- > 0) {
+            Pcntl::waitpid($pid, $status, WNOHANG | WUNTRACED);
+            if (!Posix::kill($pid, 0)) {
+                $killed = true;
+                break;
+            }
+            Builtin::doUsleep(100000);
+        }
+
+        if (!$killed) {
+            if ($forceKill) {
+                Posix::kill($pid, SIGKILL);
+            } else {
+                throw new \RuntimeException("Sent kill to $pid but does not shutdown");
+            }
+        }
+
+        $pidfile->remove();
+
+        return true;
     }
 
     /**
@@ -260,6 +366,11 @@ class Standard implements Daemon
                 ->fork(function () use ($worker, $self) {
                     $this->currentWorker = $worker;
                     $self->bindWorkerSignals();
+
+                    if (function_exists('setproctitle')) {
+                        setproctitle($worker->getName());
+                    }
+
                     $startupArgs = array();
                     if ($worker->hasStartup()) {
                         $startupArgs = $worker->runStartup();
@@ -330,9 +441,9 @@ class Standard implements Daemon
         }
 
         // wait for shutdown
-        $tries = $this->shutdownTimeout;
-        for ($try = $tries; $try > 0; --$try) {
-            BuiltIn::doUsleep(1000000);
+        $tries = $this->shutdownTimeout * 10;
+        for ($try = $tries; $try > 0; $try--) {
+            BuiltIn::doUsleep(100000);
             $resisting = 0;
 
             foreach ($this->workers as $worker) {
@@ -342,8 +453,8 @@ class Standard implements Daemon
 
             if (!$resisting) {
                 break;
-            } else {
-                $this->logger->info("$resisting resisting worker(s) still remaining - $try seconds till slaughter");
+            } elseif ($try % 10 === 0) {
+                $this->logger->info("$resisting resisting worker(s) still remaining - " . ($try / 10) . " seconds till slaughter");
             }
 
         }

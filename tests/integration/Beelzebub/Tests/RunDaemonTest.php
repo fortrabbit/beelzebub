@@ -56,6 +56,7 @@ class RunDaemonTest extends \PHPUnit_Framework_TestCase
             $daemon = $builder
                 ->setLogger(new Logger('test', array($handler)))
                 ->build();
+            $daemon->setName('testing');
             $daemon->run();
         });
 
@@ -95,6 +96,7 @@ class RunDaemonTest extends \PHPUnit_Framework_TestCase
                 ->setLogger(new Logger('test', array($handler)))
                 ->setShutdownTimeout(3);
             $daemon = $builder->build();
+            $daemon->setName('testing');
             $daemon->run();
         });
 

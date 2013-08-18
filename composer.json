@@ -29,6 +29,9 @@
         "lisachenko/go-aop-php": "@dev",
         "phpunit/phpunit": "3.7.*"
     },
+    "suggest": {
+        "ext-proctitle": "If installed, php processes are named using setproctitle()"
+    },
     "autoload": {
         "psr-0": {
             "Beelzebub\\": "src/"

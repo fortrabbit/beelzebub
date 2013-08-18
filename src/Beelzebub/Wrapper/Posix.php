@@ -26,4 +26,14 @@ class Posix
     {
         return posix_kill($pid, $signo);
     }
+
+    /**
+     * Call posix_setsid
+     *
+     * @return int
+     */
+    public static function setsid()
+    {
+        return posix_setsid();
+    }
 }

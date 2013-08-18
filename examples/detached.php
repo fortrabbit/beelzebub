@@ -1,65 +1,60 @@
 <?php
 
-require_once __DIR__. '/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
-use Fortrabbit\Beelzebub\Daemon;
-use Fortrabbit\Beelzebub\DefaultDaemon;
-use Fortrabbit\Beelzebub\Worker;
 
-print "Example shows a detaching daemon with a single worker printing out something to the logs about every second\n";
-
-if (count($argv) !== 3) {
-    die("Usage: $argv[0] <start|stop> <pid-file>");
-}
-
-$daemon = new DefaultDaemon("simple", "1.0.0");
-$daemon->registerWorker(array(
-    'hello-world' => array(
-        'loop' => function (Worker &$worker, Daemon &$daemon) {
-            $daemon->getLogger()->addInfo("Logging from client every second");
-        },
-        'interval' => 1
-    )
+$opts = getopt("p:l::hs", array(
+    "pidfile:",
+    "logfile::",
+    "help",
+    "stop"
 ));
 
-$mode    = $argv[1];
-$pidfile = $argv[2];
+if (!isset($opts['l']) || isset($opts['h'])) {
+    print <<<USAGE
+Usage: $argv[0] -p=<pidfile> [-l=<logfile>] [-s] [-h]
 
-if (file_exists($pidfile)) {
-    $pid = file_get_contents($pidfile);
-    $running = posix_kill($pid, 0);
-    print "Read PID $pid from $pidfile. Is running: $running\n";
-    #exit;
-    if ($running) {
-        if ($mode == 'start') {
-            die("Cannot start. Found running process with pid $pid.");
-        } else {
-            if ($daemon->stopDetached($pidfile)) {
-                print "Killed running process with pid $pid.";
-                unlink($pidfile);
-                exit;
-            } else {
-                die("Failed to kill running process with $pid.");
-            }
-        }
-    } else {
-        if ($mode == 'stop') {
-            unlink($pidfile);
-            die("Process not running, cleaning up pid file");
-        } else {
-            print "Cleaning up obsolete pid file\n";
-            unlink($pidfile);
-        }
-    }
-} else if ($mode == 'stop') {
-    die("Nothing to stop, $pidfile not existing");
+    -p=<pidfile> | --pidfile=<pidfile> [REQUIRED]
+        File containing PID
+
+    -l=<logfile> | --logfile=<logfile> [optional]
+        Output logging, otherwise none
+
+    -s | --stop
+        Do not start but stop, using PID from file
+
+    -h | --help
+        Show this help
+
+USAGE;
+    exit(0);
 }
 
+$logHandler = isset($opts['l'])
+    ? new \Monolog\Handler\StreamHandler($opts['l'])
+    : new \Monolog\Handler\NullHandler();
+$builder    = new Beelzebub\Daemon\Builder();
+$daemon     = $builder
+    ->setLogger(new \Monolog\Logger($logHandler))
+    ->addWorker('hello-world', array(
+        'interval' => 1,
+        'loop'     => function (Beelzebub\Worker $w) {
+            $w->getDaemon()->getLogger()->info("Hello world");
+        }
+    ))
+    ->build();
+$pidfile = new \Beelzebub\Wrapper\File($opts['p']);
 
-
-print "Daemon will now detach from shell. You can find it's PID in $pidfile and see it's output in ". __DIR__. "/out.log\n\n";
-
-$daemon->setLogfile(__DIR__. "/out.log");
-if ($pid = $daemon->runDetached($pidfile)) {
-    print "Process started with $pid\n";
+// stop
+if (isset($opts['s'])) {
+    print "Stopping running daemon: ";
+    print ($daemon->halt($pidfile) ? "OK" : "FAIL"). "\n";
+} else {
+    print "Starting detached daemon: ";
+    try {
+        $pid = $daemon->runDetached($pidfile);
+        print " [pid: $pid, file: {$opts['p']}]\n";
+    } catch (\Exception $e) {
+        print " FAIL: ". $e->getMessage(). "\n";
+    }
 }

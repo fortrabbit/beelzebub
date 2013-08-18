@@ -2,21 +2,17 @@
 
 require_once __DIR__. '/../vendor/autoload.php';
 
-use Fortrabbit\Beelzebub\Daemon;
-use Fortrabbit\Beelzebub\DefaultDaemon;
-use Fortrabbit\Beelzebub\Worker;
-
 print "Client will print out a log message about every second\n";
-print " [Press Ctrl+c to exit]\n\n";
+print " Press Ctrl+c to exit\n\n";
 
-$daemon = new DefaultDaemon("simple", "1.0.0");
-$daemon->registerWorker(array(
-    'hello-world' => array(
-        'loop' => function (Worker &$worker, Daemon &$daemon) {
-            $daemon->getLogger()->addInfo("Logging from client every second");
-        },
-        'interval' => 1
-    )
-));
-
+$builder = new Beelzebub\Daemon\Builder();
+$daemon = $builder
+    ->setLogger(new \Monolog\Logger(new \Monolog\Handler\StreamHandler('php://stderr')))
+    ->addWorker('hello-world', array(
+        'interval' => 1,
+        'loop'     => function (Beelzebub\Worker $w) {
+            $w->getDaemon()->getLogger()->info("Hello world");
+        }
+    ))
+    ->build();
 $daemon->run();

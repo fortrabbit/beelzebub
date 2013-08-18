@@ -12,6 +12,7 @@
 
 namespace Beelzebub;
 
+use Beelzebub\Wrapper\File;
 use Monolog\Logger;
 use Spork\ProcessManager;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -40,6 +41,13 @@ interface Daemon
     public function __construct(ProcessManager $manager, Logger $logger, EventDispatcherInterface $event);
 
     /**
+     * Set process name (if pecl-proctitle available)
+     *
+     * @param $name
+     */
+    public function setName($name);
+
+    /**
      * Add worker to daemon
      *
      * @param Worker $worker
@@ -52,6 +60,25 @@ interface Daemon
      * @param int|bool $iterations If true, run infinite
      */
     public function run($iterations = true);
+
+    /**
+     * Run daemon, detach from shell, close input/output and write pid to pid file
+     *
+     * @param File $pidfile
+     *
+     * @throws \RuntimeException
+     */
+    public function runDetached(File $pidfile);
+
+    /**
+     * Reads out pid file and sends shutdown signal to pid
+     *
+     * @param File $pidfile
+     * @param bool $forceKill If set to true and regular shutdown does not work after timeout -> send SIGKILL
+     *
+     * @return bool
+     */
+    public function halt(File $pidfile, $forceKill = false);
 
     /**
      * Set shutdown signal.. something like SIGINT, SIGTERM, ..

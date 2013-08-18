@@ -26,4 +26,18 @@ class Pcntl
     {
         return pcntl_signal($signo, $handler);
     }
+
+    /**
+     * Call pcntl_waitpid
+     *
+     * @param int $pid
+     * @param int &$shared
+     * @param int $flags
+     *
+     * @return int
+     */
+    public static function waitpid($pid, &$shared, $flags)
+    {
+        return pcntl_waitpid($pid, $shared, $flags);
+    }
 }
