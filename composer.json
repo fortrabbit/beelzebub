@@ -24,6 +24,7 @@
         "kriswallsmith/spork": "@dev"
     },
     "require-dev": {
+        "php": ">=5.4.0",
         "mockery/mockery": "@dev",
         "codeception/aspect-mock": "@dev",
         "lisachenko/go-aop-php": "@dev",
