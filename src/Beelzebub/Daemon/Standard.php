@@ -153,12 +153,12 @@ class Standard implements Daemon
     public function runDetached(File $pidfile)
     {
 
-        if (($pid = $pidfile->contents())) {
+        if ($pidfile->exists() && ($pid = $pidfile->contents())) {
             if (!intval($pid)) {
                 throw new \RuntimeException("Could not find PID in {$pidfile->getPath()}");
             }
             if (Posix::kill($pid, 0)) {
-                throw new \RuntimeException("Cannot use pid file {$pidfile->getPath()}: found running pid $pid");
+                throw new \RuntimeException("Found running process with pid $pid in {$pidfile->getPath()} -> will not start");
             }
         }
 
@@ -433,7 +433,8 @@ class Standard implements Daemon
         foreach ($this->workers as $worker) {
             $name = $worker->getName();
             if ($this->countRunning($name)) {
-                /** @var Fork $fork * */
+
+                /** @var Fork $fork **/
                 foreach ($this->forks[$name] as $fork) {
                     $fork->kill($this->shutdownSignal);
                 }

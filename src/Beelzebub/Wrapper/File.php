@@ -30,6 +30,16 @@ class File
     }
 
     /**
+     * Returns whether file exists (and is file)
+     *
+     * @return bool
+     */
+    public function exists()
+    {
+        return file_exists($this->path) && is_file($this->file);
+    }
+
+    /**
      * Get/set file contents
      *
      * @param string $contents
@@ -42,7 +52,7 @@ class File
             file_put_contents($this->path, $contents);
 
             return $contents;
-        } elseif (file_exists($this->path)) {
+        } elseif ($this->exists($this->path)) {
             return file_get_contents($this->path);
         } else {
             return null;

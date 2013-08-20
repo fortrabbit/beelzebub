@@ -367,16 +367,15 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
         $this->_testHandleWorkerShutdownWithExistingForks(SIGINT);
     }
 
-    /*    public function testHandleWorkerShutdownWithSIGTERM()
-        {
-            $this->_testHandleWorkerShutdownWithExistingForks(SIGTERM);
-        }
+    public function testHandleWorkerShutdownWithSIGTERM()
+    {
+        $this->_testHandleWorkerShutdownWithExistingForks(SIGTERM);
+    }
 
-        public function testHandleWorkerShutdownWithSIGQUIT()
-        {
-            $this->_testHandleWorkerShutdownWithExistingForks(SIGQUIT);
-        }*/
-
+    public function testHandleWorkerShutdownWithSIGQUIT()
+    {
+        $this->_testHandleWorkerShutdownWithExistingForks(SIGQUIT);
+    }
 
     private function _testHandleWorkerShutdownWithExistingForks($signo)
     {
@@ -403,9 +402,130 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
     }
 
 
+    public function testRunDaemonDetached()
+    {
+        $this->initDaemonWithWorker();
+        $this->daemon->addWorker($this->worker);
+        $file = m::mock('\Beelzebub\Wrapper\File');
+        $fork = m::mock('Spork\Fork');
+        $file->shouldReceive('exists')
+            ->zeroOrMoreTimes()
+            ->andReturn(false);
+        $file->shouldReceive('getPath')
+            ->zeroOrMoreTimes()
+            ->andReturn('path');
+        $this->manager->shouldReceive('fork')
+            ->once()
+            ->andReturn($fork);
+        $this->manager->shouldReceive('zombieOkay')
+            ->atLeast(1)
+            ->with(true)
+            ->andReturn();
+        $fork->shouldReceive('isExited')
+            ->zeroOrMoreTimes()
+            ->withNoArgs()
+            ->andReturn(false);
+        $fork->shouldReceive('getPid')
+            ->atLeast(1)
+            ->withNoArgs()
+            ->andReturn(123);
+        $file->shouldReceive('contents')
+            ->once()
+            ->with(123);
+        $this->daemon->runDetached($file);
+        $this->assertStaticCalls(array(
+            'posix' => array(
+                'kill' => 1
+            )
+        ));
+    }
+
+
+    /**
+     * @expectedException        \RuntimeException
+     * @expectedExceptionMessage Found running process with pid 123 in path -> will not start
+     */
+    public function testFailRunDaemonWhenRunningProcessFoundInPidfile()
+    {
+        $this->initDaemonWithWorker();
+        $this->daemon->addWorker($this->worker);
+        $file = m::mock('\Beelzebub\Wrapper\File');
+        $fork = m::mock('Spork\Fork');
+        $file->shouldReceive('exists')
+            ->zeroOrMoreTimes()
+            ->andReturn(true);
+        $file->shouldReceive('getPath')
+            ->zeroOrMoreTimes()
+            ->andReturn('path');
+        $file->shouldReceive('contents')
+            ->once()
+            ->withNoArgs()
+            ->andReturn(123);
+        $this->manager->shouldReceive('fork')
+            ->never();
+        $this->daemon->runDetached($file);
+        $this->assertStaticCalls();
+    }
+
+    public function testHaltingRunningDaemonFromPidfile()
+    {
+        $this->posix = $this->getPosixDouble(false);
+        $this->initDaemonWithWorker();
+        $this->daemon->addWorker($this->worker);
+        $file = m::mock('\Beelzebub\Wrapper\File');
+        $file->shouldReceive('exists')
+            ->zeroOrMoreTimes()
+            ->andReturn(true);
+        $file->shouldReceive('getPath')
+            ->zeroOrMoreTimes()
+            ->andReturn('path');
+        $file->shouldReceive('contents')
+            ->atLeast(1)
+            ->withNoArgs()
+            ->andReturn(123);
+        $file->shouldReceive('remove')
+            ->once()
+            ->withNoArgs();
+        $this->daemon->halt($file);
+        $this->assertStaticCalls(array(
+            'posix' => array(
+                'kill' => 1
+            )
+        ));
+    }
+
+    public function testFailingToStopFromPidfileThrowsException()
+    {
+        $this->posix = $this->getPosixDouble(true);
+        $this->initDaemonWithWorker();
+        $this->daemon->addWorker($this->worker);
+        $file = m::mock('\Beelzebub\Wrapper\File');
+        $file->shouldReceive('exists')
+            ->zeroOrMoreTimes()
+            ->andReturn(true);
+        $file->shouldReceive('getPath')
+            ->zeroOrMoreTimes()
+            ->andReturn('path');
+        $file->shouldReceive('contents')
+            ->atLeast(1)
+            ->withNoArgs()
+            ->andReturn(123);
+        $file->shouldReceive('remove')
+            ->once()
+            ->withNoArgs();
+        $this->daemon->halt($file);
+        $this->assertStaticCalls(array(
+            'posix' => array(
+                'kill' => 1
+            )
+        ));
+    }
+
+
     private function initDaemonWithWorker($extended = true)
     {
         $this->daemon = new TestableDaemon($this->manager, $this->logger, $this->events);
+        $this->daemon->setShutdownTimeout(1);
         $this->worker = $this->generateWorker('worker-name', $extended);
     }
 
