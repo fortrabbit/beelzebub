@@ -494,6 +494,10 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
         ));
     }
 
+    /**
+     * @expectedException        \RuntimeException
+     * @expectedExceptionMessage Sent kill to 123 but does not shutdown
+     */
     public function testFailingToStopFromPidfileThrowsException()
     {
         $this->posix = $this->getPosixDouble(true);
@@ -511,14 +515,30 @@ class DaemonTest extends \PHPUnit_Framework_TestCase
             ->withNoArgs()
             ->andReturn(123);
         $file->shouldReceive('remove')
-            ->once()
-            ->withNoArgs();
+            ->never();
         $this->daemon->halt($file);
         $this->assertStaticCalls(array(
             'posix' => array(
                 'kill' => 1
             )
         ));
+    }
+
+    public function testSettingProcessName()
+    {
+        if (function_exists('setproctitle')) {
+            $this->markTestSkipped('Skip method cause cannot setproctitle method exists and cannot test this..');
+        }
+
+        // for daemon
+        $this->initDaemonWithWorker(false);
+
+        // with method
+        include_once __DIR__. '/Fixtures/setproctitle.php';
+
+        $this->daemon->setProcessName('test');
+        $this->assertSame('test', $GLOBALS['THENAME']);
+
     }
 
 

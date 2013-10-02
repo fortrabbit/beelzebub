@@ -100,7 +100,7 @@ class Standard implements Daemon
     /**
      * {@inheritdoc}
      */
-    public function setName($name)
+    public function setProcessName($name)
     {
         if (function_exists('setproctitle')) {
             setproctitle($name);

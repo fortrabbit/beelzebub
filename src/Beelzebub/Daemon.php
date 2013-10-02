@@ -45,7 +45,7 @@ interface Daemon
      *
      * @param $name
      */
-    public function setName($name);
+    public function setProcessName($name);
 
     /**
      * Add worker to daemon
