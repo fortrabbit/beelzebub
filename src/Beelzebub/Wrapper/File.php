@@ -36,7 +36,7 @@ class File
      */
     public function exists()
     {
-        return file_exists($this->path) && is_file($this->file);
+        return file_exists($this->path) && is_file($this->path);
     }
 
     /**

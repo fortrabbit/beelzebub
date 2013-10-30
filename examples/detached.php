@@ -3,35 +3,15 @@
 require_once __DIR__ . '/../vendor/autoload.php';
 
 
-$opts = getopt("p:l::hs", array(
-    "pidfile:",
-    "logfile::",
-    "help",
-    "stop"
-));
+$opts = parseArgs($argv);
 
-if (!isset($opts['l']) || isset($opts['h'])) {
-    print <<<USAGE
-Usage: $argv[0] -p=<pidfile> [-l=<logfile>] [-s] [-h]
-
-    -p=<pidfile> | --pidfile=<pidfile> [REQUIRED]
-        File containing PID
-
-    -l=<logfile> | --logfile=<logfile> [optional]
-        Output logging, otherwise none
-
-    -s | --stop
-        Do not start but stop, using PID from file
-
-    -h | --help
-        Show this help
-
-USAGE;
+if (isset($opts['help']) || !isset($opts['pid'])) {
+    echo "Usage: $argv[0] [help] [log:<path-to-log-file>] [stop] pid:<path-to-pid-file>\n";
     exit(0);
 }
 
-$logHandler = isset($opts['l'])
-    ? new \Monolog\Handler\StreamHandler($opts['l'])
+$logHandler = isset($opts['log'])
+    ? new \Monolog\Handler\StreamHandler($opts['log'])
     : new \Monolog\Handler\NullHandler();
 $builder    = new Beelzebub\Daemon\Builder();
 $daemon     = $builder
@@ -43,18 +23,31 @@ $daemon     = $builder
         }
     ))
     ->build();
-$pidfile = new \Beelzebub\Wrapper\File($opts['p']);
+$pidfile = new \Beelzebub\Wrapper\File($opts['pid']);
 
 // stop
-if (isset($opts['s'])) {
+if (isset($opts['stop'])) {
     print "Stopping running daemon: ";
     print ($daemon->halt($pidfile) ? "OK" : "FAIL"). "\n";
 } else {
     print "Starting detached daemon: ";
     try {
         $pid = $daemon->runDetached($pidfile);
-        print " [pid: $pid, file: {$opts['p']}]\n";
+        print " [pid: $pid, file: {$opts['pid']}]\n";
     } catch (\Exception $e) {
         print " FAIL: ". $e->getMessage(). "\n";
     }
+}
+
+function parseArgs(array $argv)
+{
+    $opts = [];
+    foreach (array_splice($argv, 1) as $arg) {
+        if (preg_match('/^(.+?):(.+)$/', $arg, $match)) {
+            $opts[$match[1]] = $match[2];
+        } else {
+            $opts[$arg] = true;
+        }
+    }
+    return $opts;
 }
