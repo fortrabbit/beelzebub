@@ -19,7 +19,7 @@
         "php": ">=5.3.3",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "monolog/monolog": "1.5.0",
+        "monolog/monolog": "1.6.*@stable",
         "symfony/event-dispatcher": "2.3.*",
         "kriswallsmith/spork": "@dev"
     },
