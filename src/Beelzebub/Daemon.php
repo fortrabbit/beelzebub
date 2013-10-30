@@ -76,7 +76,7 @@ interface Daemon
      * @param File $pidfile
      * @param bool $forceKill If set to true and regular shutdown does not work after timeout -> send SIGKILL
      *
-     * @return bool
+     * @return bool|null
      */
     public function halt(File $pidfile, $forceKill = false);
 
