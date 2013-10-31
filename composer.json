@@ -16,12 +16,13 @@
         "posix"
     ],
     "require": {
-        "php": ">=5.3.3",
         "ext-pcntl": "*",
         "ext-posix": "*",
+        "kriswallsmith/spork": "@dev",
         "monolog/monolog": "1.6.*@stable",
-        "symfony/event-dispatcher": "2.3.*",
-        "kriswallsmith/spork": "@dev"
+        "php": ">=5.3.3",
+        "psr/log": "@stable",
+        "symfony/event-dispatcher": "2.3.*"
     },
     "require-dev": {
         "php": ">=5.4.0",

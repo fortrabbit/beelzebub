@@ -11,6 +11,7 @@ use Beelzebub\Worker;
 use Beelzebub\Worker\Standard as StandardWorker;
 use Monolog\Handler\NullHandler;
 use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 use Spork\EventDispatcher\EventDispatcherInterface;
 use Spork\ProcessManager;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -40,7 +41,7 @@ class Builder
     protected $manager;
 
     /**
-     * @var Logger
+     * @var LoggerInterface
      */
     protected $logger;
 
@@ -140,11 +141,11 @@ class Builder
     /**
      * Set logger
      *
-     * @param Logger $logger
+     * @param LoggerInterface $logger
      *
      * @return Builder
      */
-    public function setLogger(Logger $logger)
+    public function setLogger(LoggerInterface $logger)
     {
         $this->logger = $logger;
 

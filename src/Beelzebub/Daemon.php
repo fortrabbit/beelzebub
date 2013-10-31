@@ -13,7 +13,7 @@
 namespace Beelzebub;
 
 use Beelzebub\Wrapper\File;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 use Spork\ProcessManager;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -35,10 +35,10 @@ interface Daemon
      * Create new daemon instance
      *
      * @param ProcessManager           $manager
-     * @param Logger                   $logger
+     * @param LoggerInterface          $logger
      * @param EventDispatcherInterface $event
      */
-    public function __construct(ProcessManager $manager, Logger $logger, EventDispatcherInterface $event);
+    public function __construct(ProcessManager $manager, LoggerInterface $logger, EventDispatcherInterface $event);
 
     /**
      * Set process name (if pecl-proctitle available)
@@ -118,7 +118,7 @@ interface Daemon
     /**
      * Get the logger
      *
-     * @return Logger
+     * @return LoggerInterface
      */
     public function getLogger();
 

@@ -18,9 +18,8 @@ use Beelzebub\Wrapper\Builtin;
 use Beelzebub\Wrapper\File;
 use Beelzebub\Wrapper\Pcntl;
 use Beelzebub\Wrapper\Posix;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 use Spork\Exception\ProcessControlException;
-use Spork\Fifo;
 use Spork\Fork;
 use Spork\ProcessManager;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -42,7 +41,7 @@ class Standard implements Daemon
     protected $manager;
 
     /**
-     * @var Logger
+     * @var LoggerInterface
      */
     protected $logger;
 
@@ -86,7 +85,7 @@ class Standard implements Daemon
     /**
      * {@inheritdoc}
      */
-    public function __construct(ProcessManager $manager, Logger $logger, EventDispatcherInterface $event)
+    public function __construct(ProcessManager $manager, LoggerInterface $logger, EventDispatcherInterface $event)
     {
         $this->manager         = $manager;
         $this->logger          = $logger;
