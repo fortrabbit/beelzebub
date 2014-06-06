@@ -1,6 +1,9 @@
 {
-    "name": "fortrabbit/beelzebub",
-    "version": "0.1.0-dev",
+    "name": "frbit/beelzebub",
+    "replace": {
+        "fortrabbit/beelzebub": "*"
+    },
+    "version": "0.2.0",
     "description": "A PHP framework for writing (forked) multi process daemons",
     "type": "library",
     "license": "MIT",
@@ -13,30 +16,31 @@
     "keywords": [
         "daemon",
         "detach",
-        "posix"
+        "posix",
+        "pcntl",
+        "process",
+        "fork"
     ],
     "require": {
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "kriswallsmith/spork": "@dev",
-        "monolog/monolog": "1.6.*@stable",
-        "php": ">=5.3.3",
-        "psr/log": "@stable",
-        "symfony/event-dispatcher": "2.3.*"
+        "kriswallsmith/spork": "*@dev",
+        "monolog/monolog": ">=1.10",
+        "php": ">=5.4.0",
+        "psr/log": "1.*",
+        "symfony/event-dispatcher": "2.4.*",
+        "symfony/filesystem": "2.4.*"
     },
     "require-dev": {
-        "php": ">=5.4.0",
         "mockery/mockery": "@dev",
-        "codeception/aspect-mock": "@dev",
-        "lisachenko/go-aop-php": "@dev",
-        "phpunit/phpunit": "3.7.*"
+        "phpunit/phpunit": ">=4.1"
     },
     "suggest": {
-        "ext-proctitle": "If installed, php processes are named using setproctitle()"
+        "ext-proctitle": "If installed, php processes can be named using setproctitle()"
     },
     "autoload": {
         "psr-0": {
-            "Beelzebub\\": "src/"
+            "Frbit\\Beelzebub\\": "src/"
         }
     }
 }

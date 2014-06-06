@@ -3,8 +3,7 @@
  * This class is part of Beelzebub
  */
 
-namespace Beelzebub\Daemon;
-
+namespace Frbit\Beelzebub;
 
 use Symfony\Component\EventDispatcher\GenericEvent;
 
@@ -20,9 +19,6 @@ class Event extends GenericEvent
      * Called when dameon (parent) has finished shutting down children, right before program exit
      */
     const EVENT_DAEMON_STOPPED  = 'daemon.stopped';
-
-
-
 
     /**
      * Called right before new worker instance is created
