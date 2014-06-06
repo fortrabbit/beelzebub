@@ -287,11 +287,8 @@ class Daemon
             }
 
             /** @var Fork $fork */
-            error_log("WILL ITERATE " . count($kills));
             foreach ($kills as $fork) {
-                error_log("FOR FORK {$fork->getPid()}");
                 if (isset($sendSignals[$fork->getPid()])) {
-                    error_log("ALREADY SEND {$fork->getPid()}");
                     if ($sendSignals[$fork->getPid()] > time()) {
                         $this->logger->info("Must kill worker {$worker->getName()} with pid {$fork->getPid()}");
                         $fork->kill(SIGKILL);
@@ -300,7 +297,6 @@ class Daemon
                         // wait ..
                     }
                 } else {
-                    error_log("NOW SEND {$fork->getPid()}");
                     $this->logger->info("Stopping obsolete worker {$worker->getName()} with pid {$fork->getPid()}");
                     $sendSignals[$fork->getPid()] = time() + $this->getShutdownTimeout();
                     $fork->kill(SIGTERM);
