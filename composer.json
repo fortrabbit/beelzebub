@@ -21,11 +21,18 @@
         "process",
         "fork"
     ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@bitbucket.org:ukautz/frbit-system-unix-process.git"
+        }
+    ],
     "require": {
         "ext-pcntl": "*",
         "ext-posix": "*",
+        "frbit/system-unix-process": "*@dev",
         "kriswallsmith/spork": "*@dev",
-        "monolog/monolog": ">=1.10",
+        "monolog/monolog": ">=1.10@dev",
         "php": ">=5.4.0",
         "psr/log": "1.*",
         "symfony/event-dispatcher": "2.4.*",

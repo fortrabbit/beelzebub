@@ -1,58 +1,44 @@
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__. '/../vendor/autoload.php';
 
-
-$opts = parseArgs($argv);
-
-if (isset($opts['help']) || !isset($opts['pid'])) {
-    echo "Usage: $argv[0] [help] [log:<path-to-log-file>] [stop] pid:<path-to-pid-file>\n";
-    exit(0);
+if ($argc !== 2 || !in_array($argv[1], ['start', 'stop'])) {
+    die("Usage: $argv[0] <start|stop>");
 }
 
+$pidFile = '/tmp/daemon.pid';
+$logFile = '/tmp/daemon.log';
 
-$logHandler = isset($opts['log'])
-    ? new \Monolog\Handler\StreamHandler('file://' . $opts['log'])
-    : new \Monolog\Handler\NullHandler();
-$logger     = new \Monolog\Logger("DetachedExample", array($logHandler));
-$logger->info("Building");
+echo "Usage: $argv[0] <start|stop>\n";
+echo " In start mode daemon will detach from shell\n";
+echo " Log file: $logFile\n";
+echo " Pid file: $pidFile\n\n";
 
-$builder = new Beelzebub\Daemon\Builder();
-$daemon  = $builder
-    ->setLogger($logger)
-    ->addWorker('hello-world', array(
-        'interval' => 1,
-        'loop'     => function (Beelzebub\Worker $w) {
-                $w->getDaemon()->getLogger()->info("Hello world");
-            }
-    ))
-    ->build();
-$pidfile = new \Beelzebub\Wrapper\File($opts['pid']);
 
-// stop
-if (isset($opts['stop'])) {
-    echo "Stopping running daemon: ";
-    echo ($daemon->halt($pidfile) ? "OK" : "FAIL") . "\n";
+$logger = new \Monolog\Logger('simple-daemon', [
+    new \Monolog\Handler\StreamHandler($logFile)
+]);
+$daemon = new Frbit\Beelzebub\Daemon('simple-daemon', null, $logger);
+$daemon->addWorker(new \Frbit\Beelzebub\Worker\CallableWorker(
+    'simple-worker1',
+    function () {
+        error_log("Working");
+    },
+    5
+));
+$daemon->addWorker(new \Frbit\Beelzebub\Worker\CallableWorker(
+    'simple-worker2',
+    function () {
+        sleep(2);
+        die("Foo");
+    },
+    5
+));
+
+
+if ($argc > 1 && $argv[1] === 'stop') {
+    $daemon->halt($pidFile, true);
 } else {
-    echo "Starting detached daemon: ";
-    try {
-        $pid = $daemon->runDetached($pidfile);
-        echo " [pid: $pid, file: {$opts['pid']}]\n";
-    } catch (\Exception $e) {
-        echo " FAIL: " . $e->getMessage() . "\n";
-    }
-}
-
-function parseArgs(array $argv)
-{
-    $opts = array();
-    foreach (array_splice($argv, 1) as $arg) {
-        if (preg_match('/^(.+?):(.+)$/', $arg, $match)) {
-            $opts[$match[1]] = $match[2];
-        } else {
-            $opts[$arg] = true;
-        }
-    }
-
-    return $opts;
+    $pid = $daemon->runDetached($pidFile);
+    echo "Started daemon with pid $pid\n";
 }

@@ -12,13 +12,15 @@
 
 namespace Frbit\Beelzebub;
 
+use Frbit\Beelzebub\Helper\BuiltInDouble;
+use Frbit\System\UnixProcess\Manager;
+use Frbit\System\UnixProcess\ProcessList;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Psr\Log\LoggerInterface;
+use Spork\Exception\ProcessControlException;
 use Spork\Fork;
 use Spork\ProcessManager;
-use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 declare(ticks = 1);
 
@@ -41,9 +43,9 @@ class Daemon
     const DEFAULT_SHUTDOWN_SIGNAL = SIGQUIT;
 
     /**
-     * @var EventDispatcherInterface
+     * @var BuiltInDouble
      */
-    protected $dispatcher;
+    protected $builtIn;
 
     /**
      * @var Fork[]
@@ -56,11 +58,6 @@ class Daemon
     protected $logger;
 
     /**
-     * @var ProcessManager
-     */
-    protected $manager;
-
-    /**
      * @var string
      */
     protected $name;
@@ -68,12 +65,43 @@ class Daemon
     /**
      * @var int
      */
+    protected $processListTimeout;
+
+    /**
+     * @var ProcessList
+     */
+    protected $processList;
+
+    /**
+     * @var Manager
+     */
+    protected $processes;
+
+    /**
+     * Handler called when restart signal USR1 is received
+     *
+     * @var callable
+     */
+    protected $restartHandler;
+
+    /**
+     * Signal send to childs on shutdown
+     *
+     * @var int
+     */
     protected $shutdownSignal;
 
     /**
+     * Grace timeout after which childs are kill by force (SIGKILL)
+     *
      * @var int
      */
     protected $shutdownTimeout;
+
+    /**
+     * @var ProcessManager
+     */
+    protected $spork;
 
     /**
      * @var Worker[]
@@ -83,25 +111,35 @@ class Daemon
     /**
      * Create new daemon instance
      *
-     * @param string                   $name
-     * @param ProcessManager           $manager
-     * @param LoggerInterface          $logger
-     * @param EventDispatcherInterface $dispatcher
+     * @param string          $name
+     * @param ProcessManager  $spork
+     * @param LoggerInterface $logger
+     * @param Manager         $processes
+     * @param BuiltInDouble   $double
      */
-    public function __construct($name, ProcessManager $manager = null, LoggerInterface $logger = null, EventDispatcherInterface $dispatcher = null)
-    {
-        $this->name       = $name;
-        $this->manager    = $manager ? : new ProcessManager();
-        $this->logger     = $logger ? : new Logger($name, [new StreamHandler('php://stderr')]);
-        $this->dispatcher = $dispatcher ? : new EventDispatcher();
+    public function __construct(
+        $name,
+        ProcessManager $spork = null,
+        LoggerInterface $logger = null,
+        Manager $processes = null,
+        BuiltInDouble $double = null
+    ) {
+        $this->name      = $name;
+        $this->spork     = $spork ? : new ProcessManager();
+        $this->logger    = $logger ? : new Logger($name, [new StreamHandler('php://stderr')]);
+        $this->processes = $processes ? : new Manager();
+        $this->builtIn   = $double ? : new BuiltInDouble();
 
-        $this->workers        = [];
-        $this->forks          = [];
-        $this->shutdownSignal = static::DEFAULT_SHUTDOWN_SIGNAL;
+        $this->workers         = [];
+        $this->forks           = [];
+        $this->shutdownSignal  = static::DEFAULT_SHUTDOWN_SIGNAL;
+        $this->shutdownTimeout = static::DEFAULT_SHUTDOWN_GRACETIME;
+
+        $this->spork->zombieOkay(true);
     }
 
     /**
-     * Add worker to daemon
+     * Add worker to daemon. Worker must be unique by name. If worker with name exists, it will be replaced.
      *
      * @param Worker $worker
      */
@@ -111,13 +149,23 @@ class Daemon
     }
 
     /**
-     * Get the event dispatcher
+     * Returns associative array of workers {name => Worker}
      *
-     * @return EventDispatcherInterface
+     * @return Worker[]
      */
-    public function getEventDispatcher()
+    public function getWorkers()
     {
-        return $this->dispatcher;
+        return $this->workers;
+    }
+
+    /**
+     * @param string $name
+     *
+     * @return Worker|null
+     */
+    public function getWorker($name)
+    {
+        return isset($this->workers[$name]) ? $this->workers[$name] : null;
     }
 
     /**
@@ -128,16 +176,6 @@ class Daemon
     public function getLogger()
     {
         return $this->logger;
-    }
-
-    /**
-     * Get the process manager
-     *
-     * @return ProcessManager
-     */
-    public function getProcessManager()
-    {
-        return $this->manager;
     }
 
     /**
@@ -181,16 +219,68 @@ class Daemon
     }
 
     /**
+     * Get the process manager
+     *
+     * @return ProcessManager
+     */
+    public function getSpork()
+    {
+        return $this->spork;
+    }
+
+    /**
      * Reads out pid file and sends shutdown signal to pid
      *
-     * @param string $pidfile
+     * @param string $pidFile
      * @param bool   $forceKill If set to true and regular shutdown does not work after timeout -> send SIGKILL
      *
      * @return bool|null
      */
-    public function halt($pidfile, $forceKill = false)
+    public function halt($pidFile, $forceKill = false)
     {
-        // TODO
+        // no pidfile?
+        if (!$this->builtIn->file_exists($pidFile)) {
+            die("Pidfile \"$pidFile\" does not exist");
+        }
+
+        // pid invalid?
+        $pid = $this->builtIn->file_get_contents($pidFile);
+        if (!$pid) {
+            die("Pidfile \"$pidFile\" does not contain a pid");
+        }
+
+        // initial not found
+        $process = $this->getProcessList(true)->getByPid($pid);
+        if (!$process) {
+            die("No process found with pid \"$pid\"");
+        }
+
+        // send shutdown and wait ..
+        $this->builtIn->posix_kill($process->getPid(), $this->getShutdownSignal());
+        $end = time() + $this->getShutdownTimeout();
+        while (time() < $end) {
+            $process = $this->getProcessList(true)->getByPid($pid);
+            if (!$process) {
+                break;
+            }
+            $this->builtIn->sleep(1);
+        }
+
+        // process still there -> force kill?
+        if ($process) {
+            if ($forceKill) {
+                $childs = $process->getAllChilds();
+                foreach ($childs as $child) {
+                    $this->builtIn->posix_kill($child->getPid(), SIGKILL);
+                }
+                $this->builtIn->posix_kill($process->getPid(), SIGKILL);
+            } else {
+                die("Process with pid {$process->getPid()} is still running. Force kill not used.");
+            }
+        }
+
+        // cleanup pid file
+        $this->builtIn->unlink($pidFile);
     }
 
     /**
@@ -201,57 +291,113 @@ class Daemon
     public function run($iterations = true)
     {
         $this->setProcessName($this->name);
+
+        // bind shutdown signal
         $stopped = false;
-        pcntl_signal($this->getShutdownSignal(), function () use (&$stopped) {
-            $this->logger->info("Received shutdown in " . getmypid());
+        $this->builtIn->pcntl_signal(SIGINT, function () use (&$stopped) {
+            $this->logger->debug("Received INT shutdown in " . getmypid());
             $stopped = true;
+        });
+        $this->builtIn->pcntl_signal(SIGTERM, function () use (&$stopped) {
+            $this->logger->debug("Received TERM shutdown in " . getmypid());
+            $stopped = true;
+        });
+        $this->builtIn->pcntl_signal(SIGQUIT, function () use (&$stopped) {
+            $this->logger->debug("Received QUIT shutdown in " . getmypid());
+            $stopped = true;
+        });
+
+        // bind restart signal
+        $restart = false;
+        $this->builtIn->pcntl_signal(SIGUSR1, function () use(&$restart) {
+            $this->logger->debug("Received USR1 restart signal in ". getmypid());
+            $restart = true;
         });
 
         $count = 0;
         while (true) {
+
+            // handle restart of child processes
+            if ($restart) {
+                if ($forks = $this->getAllForks()) {
+                    $this->killForks($forks);
+                }
+
+                // execute restart handler, if any
+                if ($handler = $this->restartHandler) {
+                    call_user_func($handler, $this);
+                }
+
+                $restart = false;
+            }
+
+            // assure worker running
             foreach ($this->workers as $name => $worker) {
                 $this->assureWorkerRuns($worker);
             }
-            $this->manager->wait(false);
+            $this->spork->wait(false);
+
+            // shut down
             if ($stopped) {
                 break;
             }
+
+            // if run only x iterations -> make sure we stop
             if ($iterations !== true) {
                 $count++;
                 if ($count > $iterations) {
                     break;
                 }
             }
-            sleep(1);
+            $this->builtIn->sleep(1);
         }
 
-        foreach ($this->workers as $name => $worker) {
-            $this->assureMaxForks($worker, 0);
-        }
-
-        while (true) {
-            $count = 0;
-            foreach ($this->workers as $name => $worker) {
-                $count += isset($this->forks[$name]) ? count($this->forks[$name]) : 0;
-            }
-            if (!$count) {
-                break;
-            }
-            $this->logger->debug("Waiting for $count childs to die in " . getmypid());
-            sleep(1);
+        if ($forks = $this->getAllForks()) {
+            $this->killForks($forks);
         }
     }
 
     /**
      * Run daemon, detach from shell, close input/output and write pid to pid file
      *
-     * @param string $pidfile
+     * @param string      $pidfile
+     * @param bool|string $chroot
+     * @param bool|int    $uid
+     * @param bool|int    $gid
      *
-     * @throws \RuntimeException
+     * @return int
      */
-    public function runDetached($pidfile)
+    public function runDetached($pidfile, $chroot = false, $uid = false, $gid = false)
     {
-        // TODO
+        $pid = $this->builtIn->pcntl_fork();
+        if ($pid) {
+            return $pid;
+        } elseif (is_null($pid)) {
+            die("Failed to fork");
+        } else {
+            if ($gid !== false) {
+                $this->builtIn->posix_setgid($gid);
+            }
+            if ($uid !== false) {
+                $this->builtIn->posix_setuid($uid);
+            }
+            if ($chroot !== false) {
+                $this->builtIn->chroot($chroot);
+            }
+            $pid = getmypid();
+            $this->builtIn->file_put_contents($pidfile, $pid);
+            $this->logger->info("Daemonized with pid $pid ($pidfile)");
+
+            // close standard file descriptors
+            fclose(STDIN);
+            fclose(STDOUT);
+            fclose(STDERR);
+
+            $sid = $this->builtIn->posix_setsid();
+            $this->logger->info("SID $sid");
+            $this->run();
+            exit();
+        }
     }
 
     /**
@@ -269,53 +415,57 @@ class Daemon
     }
 
     /**
+     * @param callable $restartHandler
+     */
+    public function setRestartHandler($restartHandler)
+    {
+        $this->restartHandler = $restartHandler;
+    }
+
+    /**
+     * Assure that given amount of forks for worker are running. Not more. Not less.
+     *
      * @param Worker $worker
      * @param int    $amount
      *
      * @return Fork[]
      */
-    protected function assureMaxForks(Worker $worker, $amount)
+    protected function assureWorkerForks(Worker $worker, $amount)
     {
-        $forks = $this->checkRunning($worker);
+        $forks = $this->getRunningForks($worker);
         $count = count($forks);
 
-        $sendSignals = [];
-        while ($count > $amount) {
+        if ($count > $amount) {
             $kills = [];
             foreach (range(1, $count - $amount) as $num) {
                 $kills[] = $forks[$num - 1];
             }
-
-            /** @var Fork $fork */
-            foreach ($kills as $fork) {
-                if (isset($sendSignals[$fork->getPid()])) {
-                    if ($sendSignals[$fork->getPid()] > time()) {
-                        $this->logger->info("Must kill worker {$worker->getName()} with pid {$fork->getPid()}");
-                        $fork->kill(SIGKILL);
-                    } else {
-                        $this->logger->debug("Waiting for worker {$worker->getName()} with pid {$fork->getPid()} to shut down");
-                        // wait ..
-                    }
-                } else {
-                    $this->logger->info("Stopping obsolete worker {$worker->getName()} with pid {$fork->getPid()}");
-                    $sendSignals[$fork->getPid()] = time() + $this->getShutdownTimeout();
-                    $fork->kill(SIGTERM);
-                    $this->manager->wait(true);
-                }
-            }
-            sleep(1);
-            $forks = $this->checkRunning($worker);
-            $count = count($forks);
+            $this->killForks($kills);
         }
 
         while ($count < $amount) {
-            $forks [] = $fork = $this->manager->fork(function () use ($worker) {
-                pcntl_signal($this->getShutdownSignal(), function () { exit(); });
+            $forks [] = $fork = $this->spork->fork(function () use ($worker) {
+
+                // set shutdown handler, might be overwritten by worker's startup ro so
+                $this->builtIn->pcntl_signal(SIGTERM, function () { exit(); });
+                $this->builtIn->pcntl_signal(SIGQUIT, function () { exit(); });
+                $this->builtIn->pcntl_signal(SIGINT, function () { exit(); });
+                $this->builtIn->pcntl_signal(SIGUSR1, SIG_IGN);
+
+                // set process name
                 $this->setProcessName($worker->getName());
+
+                // run startup
+                if ($worker->hasStartup()) {
+                    $worker->runStartup();
+                }
+
+                // run loop
                 while (true) {
                     $worker->run();
-                    sleep($worker->getInterval());
+                    $this->builtIn->sleep($worker->getInterval());
                 }
+                exit();
             });
             $this->logger->info("Started new process for {$worker->getName()} with pid {$fork->getPid()}");
             $count++;
@@ -324,6 +474,11 @@ class Daemon
         return $forks;
     }
 
+    /**
+     * Makes sure worker runs with exactly the amount of proceses required
+     *
+     * @param Worker $worker
+     */
     protected function assureWorkerRuns(Worker $worker)
     {
         if (!isset($this->forks[$worker->getName()])) {
@@ -331,30 +486,62 @@ class Daemon
         }
 
         $amount = $worker->getAmount();
-        $forks  = $this->assureMaxForks($worker, $amount);
+        $forks  = $this->assureWorkerForks($worker, $amount);
 
         $this->forks[$worker->getName()] = $forks;
     }
 
     /**
+     * Reduces list of forks by running
+     *
+     * @param Fork[] $forks
+     *
+     * @return Fork[]
+     */
+    protected function checkForks(array $forks)
+    {
+        $running = [];
+        foreach ($forks as $num => $fork) {
+            if (!$fork->isExited() && $this->getProcessList($num === 0)->getByPid($fork->getPid())) {
+                $running[] = $fork;
+            }
+        }
+
+        return $running;
+    }
+
+    /**
+     * Get all running forks of all workers
+     *
+     * @return Fork[]
+     */
+    protected function getAllForks()
+    {
+        $forks = [];
+        foreach ($this->forks as $workerName => $workerForks) {
+            foreach ($workerForks as $fork) {
+                $forks [] = $fork;
+            }
+        }
+
+        return $forks;
+    }
+
+    /**
+     * Get all running forks of a specific worker
+     *
      * @param Worker $worker
      *
      * @return Fork[]
      */
-    protected function checkRunning(Worker $worker)
+    protected function getRunningForks(Worker $worker)
     {
         if (!isset($this->forks[$worker->getName()])) {
             return [];
         }
 
         /** @var Fork $fork */
-        $forks = [];
-        foreach ($this->forks[$worker->getName()] as $fork) {
-            if (!$fork->isExited()) {
-                $this->logger->debug("Process {$fork->getPid()} for {$worker->getName()} in state {$fork->getState()}");
-                $forks [] = $fork;
-            }
-        }
+        $forks = $this->checkForks($this->forks[$worker->getName()]);
         usort($forks, function (Fork $forkA, Fork $forkB) {
             return $forkA->getPid() > $forkB->getPid()
                 ? 1
@@ -365,6 +552,97 @@ class Daemon
         });
 
         return $this->forks[$worker->getName()] = $forks;
+    }
+
+    /**
+     * Kill list of forks and their (if any) child processes
+     *
+     * @param Fork[] $forks
+     */
+    protected function killForks(array $forks)
+    {
+        $sendSignals = [];
+        while ($forks) {
+            foreach ($forks as $fork) {
+
+                // re-check here to reduce the exception error on killing
+                if ($fork->isExited() || !$this->getProcessList()->getByPid($fork->getPid())) {
+                    continue;
+                }
+
+                // already signaled -> either wait or kill brutally
+                if (isset($sendSignals[$fork->getPid()])) {
+
+                    // time to be brutal
+                    $diff = $sendSignals[$fork->getPid()] - time();
+                    if ($diff < 0) {
+                        $this->logger->info("Must force kill worker pid {$fork->getPid()}");
+
+                        // kill childs, if any
+                        $processes = $this->getProcessList()->getByPpid($fork->getPid(), true);
+                        foreach ($processes as $process) {
+                            $this->builtIn->posix_kill($process->getPid(), SIGKILL);
+                        }
+
+                        // kill fork itself
+                        try {
+                            $fork->kill(SIGKILL);
+                        } catch (ProcessControlException $e) {
+                            $this->logger->error("Error force killing fork: {$e->getMessage()}");
+                        }
+                    } else {
+                        $this->logger->debug("Waiting for pid {$fork->getPid()} to shut down (max: {$diff}sec)");
+                    }
+                } // not yet signaled -> do now
+                else {
+                    $this->logger->debug("Stopping obsolete pid {$fork->getPid()}, wait max {$this->getShutdownTimeout()}sec to kill");
+                    $sendSignals[$fork->getPid()] = time() + $this->getShutdownTimeout();
+
+                    // kill childs, if any
+                    $processes = $this->getProcessList()->getByPpid($fork->getPid(), true);
+                    foreach ($processes as $process) {
+                        $this->builtIn->posix_kill($process->getPid(), $this->getShutdownSignal());
+                    }
+
+                    // kill fork iteself
+                    try {
+                        $fork->kill($this->getShutdownSignal());
+                    } catch (ProcessControlException $e) {
+                        $this->logger->error("Error killing fork: {$e->getMessage()}");
+                    }
+                    $this->spork->wait(false);
+                }
+            }
+
+            try {
+                $this->spork->wait(false);
+            } catch (ProcessControlException $e) {
+                // nothing
+            }
+
+            $this->builtIn->sleep(1);
+            if ($forks = $this->checkForks($forks)) {
+                $this->logger->debug("Still waiting for " . count($forks) . " children");
+            }
+        }
+    }
+
+    /**
+     * Cached access to process list.. speeds up things
+     *
+     * @param bool $forceRefresh
+     *
+     * @return ProcessList
+     */
+    protected function getProcessList($forceRefresh = false)
+    {
+        $now = microtime();
+        if ($forceRefresh || !$this->processListTimeout || $this->processListTimeout > $now) {
+            $this->processListTimeout = $now + 0.5;
+            $this->processList = $this->processes->all();
+        }
+
+        return $this->processList;
     }
 
 

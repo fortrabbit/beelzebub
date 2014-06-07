@@ -3,7 +3,6 @@
 
 namespace Frbit\Beelzebub\Worker;
 
-use Frbit\Beelzebub\Daemon;
 use Frbit\Beelzebub\Worker;
 
 /**
