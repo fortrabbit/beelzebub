@@ -275,20 +275,22 @@ class Daemon
                 }
                 $this->builtIn->posix_kill($process->getPid(), SIGKILL);
             } else {
-                die("Process with pid {$process->getPid()} is still running. Force kill not used.");
+                return false;
             }
         }
 
         // cleanup pid file
         $this->builtIn->unlink($pidFile);
+
+        return true;
     }
 
     /**
      * Executes daemon by starting all child processes
      *
-     * @param int|bool $iterations If true, run infinite
+     * @param int|bool $timeout If int value > 0, then worker will exit after this time
      */
-    public function run($iterations = true)
+    public function run($timeout = false)
     {
         $this->setProcessName($this->name);
 
@@ -309,12 +311,12 @@ class Daemon
 
         // bind restart signal
         $restart = false;
-        $this->builtIn->pcntl_signal(SIGUSR1, function () use(&$restart) {
-            $this->logger->debug("Received USR1 restart signal in ". getmypid());
+        $this->builtIn->pcntl_signal(SIGUSR1, function () use (&$restart) {
+            $this->logger->debug("Received USR1 restart signal in " . getmypid());
             $restart = true;
         });
 
-        $count = 0;
+        $timeout = $timeout ? time() + $timeout : false;
         while (true) {
 
             // handle restart of child processes
@@ -343,11 +345,8 @@ class Daemon
             }
 
             // if run only x iterations -> make sure we stop
-            if ($iterations !== true) {
-                $count++;
-                if ($count > $iterations) {
-                    break;
-                }
+            if ($timeout && $timeout > time()) {
+                break;
             }
             $this->builtIn->sleep(1);
         }
@@ -639,7 +638,7 @@ class Daemon
         $now = microtime();
         if ($forceRefresh || !$this->processListTimeout || $this->processListTimeout > $now) {
             $this->processListTimeout = $now + 0.5;
-            $this->processList = $this->processes->all();
+            $this->processList        = $this->processes->all();
         }
 
         return $this->processList;
