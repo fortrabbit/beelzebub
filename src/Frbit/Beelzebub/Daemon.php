@@ -364,10 +364,16 @@ class Daemon
      * @param bool|int    $uid
      * @param bool|int    $gid
      *
-     * @return int
+     * @return int|bool
      */
     public function runDetached($pidfile, $chroot = false, $uid = false, $gid = false)
     {
+        if ($this->builtIn->file_exists($pidfile) && ($pid = $this->builtIn->file_get_contents($pidfile))) {
+            if ($this->getProcessList()->getByPid($pid)) {
+                return false;
+            }
+        }
+
         $pid = $this->builtIn->pcntl_fork();
         if ($pid) {
             return $pid;
