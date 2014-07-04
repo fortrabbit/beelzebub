@@ -18,6 +18,7 @@ namespace Frbit\Beelzebub\Helper;
  * @method void posix_setgid(int $gid)
  * @method void posix_setuid(int $uid)
  * @method void sleep(int $time)
+ * @method void usleep(int $micro_seconds)
  * @method void unlink(string $path)
  *
  * @package Frbit\Beelzebub\Helper

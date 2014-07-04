@@ -31,6 +31,11 @@ class DaemonTest extends TestCase
     /**
      * @var \Mockery\MockInterface
      */
+    protected $sleeper;
+
+    /**
+     * @var \Mockery\MockInterface
+     */
     protected $spork;
 
     public function setUp()
@@ -39,12 +44,13 @@ class DaemonTest extends TestCase
         $this->spork     = $this->mock('\Spork\ProcessManager', [], ['zombieOkay' => true, 'wait' => true]);
         $this->logger    = $this->mock('\Psr\Log\LoggerInterface')->shouldIgnoreMissing();
         $this->processes = $this->mock('\Frbit\System\UnixProcess\Manager');
+        $this->sleeper   = $this->mockCurrent('Sleeper');
         $this->builtIns  = $this->mockCurrent('Helper\BuiltInDouble');
     }
 
     public function testConstructor()
     {
-        new Daemon('foo', $this->spork, $this->logger, $this->processes, $this->builtIns);
+        new Daemon('foo', $this->spork, $this->logger, $this->processes, $this->sleeper, $this->builtIns);
         $this->assertTrue(true);
     }
 
@@ -81,7 +87,7 @@ class DaemonTest extends TestCase
      */
     protected function generateDaemon()
     {
-        $daemon = new Daemon('foo', $this->spork, $this->logger, $this->processes, $this->builtIns);
+        $daemon = new Daemon('foo', $this->spork, $this->logger, $this->processes, $this->sleeper, $this->builtIns);
 
         return $daemon;
     }

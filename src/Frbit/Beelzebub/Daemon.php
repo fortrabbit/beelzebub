@@ -13,6 +13,7 @@
 namespace Frbit\Beelzebub;
 
 use Frbit\Beelzebub\Helper\BuiltInDouble;
+use Frbit\Beelzebub\Sleeper\RealSleeper;
 use Frbit\System\UnixProcess\Manager;
 use Frbit\System\UnixProcess\ProcessList;
 use Monolog\Handler\StreamHandler;
@@ -63,14 +64,14 @@ class Daemon
     protected $name;
 
     /**
-     * @var int
-     */
-    protected $processListTimeout;
-
-    /**
      * @var ProcessList
      */
     protected $processList;
+
+    /**
+     * @var int
+     */
+    protected $processListTimeout;
 
     /**
      * @var Manager
@@ -99,6 +100,11 @@ class Daemon
     protected $shutdownTimeout;
 
     /**
+     * @var Sleeper
+     */
+    protected $sleeper;
+
+    /**
      * @var ProcessManager
      */
     protected $spork;
@@ -115,6 +121,7 @@ class Daemon
      * @param ProcessManager  $spork
      * @param LoggerInterface $logger
      * @param Manager         $processes
+     * @param Sleeper         $sleeper
      * @param BuiltInDouble   $double
      */
     public function __construct(
@@ -122,13 +129,15 @@ class Daemon
         ProcessManager $spork = null,
         LoggerInterface $logger = null,
         Manager $processes = null,
+        Sleeper $sleeper = null,
         BuiltInDouble $double = null
     ) {
         $this->name      = $name;
-        $this->spork     = $spork ? : new ProcessManager();
-        $this->logger    = $logger ? : new Logger($name, [new StreamHandler('php://stderr')]);
-        $this->processes = $processes ? : new Manager();
-        $this->builtIn   = $double ? : new BuiltInDouble();
+        $this->spork     = $spork ?: new ProcessManager();
+        $this->logger    = $logger ?: new Logger($name, [new StreamHandler('php://stderr')]);
+        $this->processes = $processes ?: new Manager();
+        $this->builtIn   = $double ?: new BuiltInDouble();
+        $this->sleeper   = $sleeper ?: new RealSleeper($this->builtIn);
 
         $this->workers         = [];
         $this->forks           = [];
@@ -146,26 +155,6 @@ class Daemon
     public function addWorker(Worker $worker)
     {
         $this->workers[$worker->getName()] = $worker;
-    }
-
-    /**
-     * Returns associative array of workers {name => Worker}
-     *
-     * @return Worker[]
-     */
-    public function getWorkers()
-    {
-        return $this->workers;
-    }
-
-    /**
-     * @param string $name
-     *
-     * @return Worker|null
-     */
-    public function getWorker($name)
-    {
-        return isset($this->workers[$name]) ? $this->workers[$name] : null;
     }
 
     /**
@@ -219,6 +208,14 @@ class Daemon
     }
 
     /**
+     * @return RealSleeper
+     */
+    public function getSleeper()
+    {
+        return $this->sleeper;
+    }
+
+    /**
      * Get the process manager
      *
      * @return ProcessManager
@@ -226,6 +223,26 @@ class Daemon
     public function getSpork()
     {
         return $this->spork;
+    }
+
+    /**
+     * @param string $name
+     *
+     * @return Worker|null
+     */
+    public function getWorker($name)
+    {
+        return isset($this->workers[$name]) ? $this->workers[$name] : null;
+    }
+
+    /**
+     * Returns associative array of workers {name => Worker}
+     *
+     * @return Worker[]
+     */
+    public function getWorkers()
+    {
+        return $this->workers;
     }
 
     /**
@@ -263,7 +280,7 @@ class Daemon
             if (!$process) {
                 break;
             }
-            $this->builtIn->sleep(1);
+            $this->sleeper->sleep(1);
         }
 
         // process still there -> force kill?
@@ -348,7 +365,7 @@ class Daemon
             if ($timeout && $timeout > time()) {
                 break;
             }
-            $this->builtIn->sleep(1);
+            $this->sleeper->sleep(1);
         }
 
         if ($forks = $this->getAllForks()) {
@@ -468,7 +485,7 @@ class Daemon
                 // run loop
                 while (true) {
                     $worker->run();
-                    $this->builtIn->sleep($worker->getInterval());
+                    $this->sleeper->sleep($worker->getInterval());
                 }
                 exit();
             });
@@ -530,6 +547,24 @@ class Daemon
         }
 
         return $forks;
+    }
+
+    /**
+     * Cached access to process list.. speeds up things
+     *
+     * @param bool $forceRefresh
+     *
+     * @return ProcessList
+     */
+    protected function getProcessList($forceRefresh = false)
+    {
+        $now = microtime();
+        if ($forceRefresh || !$this->processListTimeout || $this->processListTimeout > $now) {
+            $this->processListTimeout = $now + 0.5;
+            $this->processList        = $this->processes->all();
+        }
+
+        return $this->processList;
     }
 
     /**
@@ -625,29 +660,11 @@ class Daemon
                 // nothing
             }
 
-            $this->builtIn->sleep(1);
+            $this->sleeper->sleep(1);
             if ($forks = $this->checkForks($forks)) {
                 $this->logger->debug("Still waiting for " . count($forks) . " children");
             }
         }
-    }
-
-    /**
-     * Cached access to process list.. speeds up things
-     *
-     * @param bool $forceRefresh
-     *
-     * @return ProcessList
-     */
-    protected function getProcessList($forceRefresh = false)
-    {
-        $now = microtime();
-        if ($forceRefresh || !$this->processListTimeout || $this->processListTimeout > $now) {
-            $this->processListTimeout = $now + 0.5;
-            $this->processList        = $this->processes->all();
-        }
-
-        return $this->processList;
     }
 
 
