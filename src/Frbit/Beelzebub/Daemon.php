@@ -336,36 +336,42 @@ class Daemon
         $timeout = $timeout ? time() + $timeout : false;
         while (true) {
 
-            // handle restart of child processes
-            if ($restart) {
-                if ($forks = $this->getAllForks()) {
-                    $this->killForks($forks);
+            try {
+
+                // handle restart of child processes
+                if ($restart) {
+                    if ($forks = $this->getAllForks()) {
+                        $this->killForks($forks);
+                    }
+
+                    // execute restart handler, if any
+                    if ($handler = $this->restartHandler) {
+                        call_user_func($handler, $this);
+                    }
+
+                    $restart = false;
                 }
 
-                // execute restart handler, if any
-                if ($handler = $this->restartHandler) {
-                    call_user_func($handler, $this);
+                // assure worker running
+                foreach ($this->workers as $name => $worker) {
+                    $this->assureWorkerRuns($worker);
+                }
+                $this->spork->wait(false);
+
+                // shut down
+                if ($stopped) {
+                    break;
                 }
 
-                $restart = false;
-            }
+                // if run only x iterations -> make sure we stop
+                if ($timeout && $timeout > time()) {
+                    break;
+                }
+                $this->sleeper->sleep(1);
 
-            // assure worker running
-            foreach ($this->workers as $name => $worker) {
-                $this->assureWorkerRuns($worker);
+            } catch (\Exception $e) {
+                $this->logger->critical("Failure in daemon loop: $e");
             }
-            $this->spork->wait(false);
-
-            // shut down
-            if ($stopped) {
-                break;
-            }
-
-            // if run only x iterations -> make sure we stop
-            if ($timeout && $timeout > time()) {
-                break;
-            }
-            $this->sleeper->sleep(1);
         }
 
         if ($forks = $this->getAllForks()) {
