@@ -20,8 +20,6 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Psr\Log\LoggerInterface;
 use Spork\Exception\ProcessControlException;
-use Spork\Fork;
-use Spork\ProcessManager;
 
 declare(ticks = 1);
 
@@ -105,11 +103,6 @@ class Daemon
     protected $sleeper;
 
     /**
-     * @var ProcessManager
-     */
-    protected $spork;
-
-    /**
      * @var Worker[]
      */
     protected $workers;
@@ -118,7 +111,6 @@ class Daemon
      * Create new daemon instance
      *
      * @param string          $name
-     * @param ProcessManager  $spork
      * @param LoggerInterface $logger
      * @param Manager         $processes
      * @param Sleeper         $sleeper
@@ -126,14 +118,12 @@ class Daemon
      */
     public function __construct(
         $name,
-        ProcessManager $spork = null,
         LoggerInterface $logger = null,
         Manager $processes = null,
         Sleeper $sleeper = null,
         BuiltInDouble $double = null
     ) {
         $this->name      = $name;
-        $this->spork     = $spork ?: new ProcessManager();
         $this->logger    = $logger ?: new Logger($name, [new StreamHandler('php://stderr')]);
         $this->processes = $processes ?: new Manager();
         $this->builtIn   = $double ?: new BuiltInDouble();
@@ -143,8 +133,6 @@ class Daemon
         $this->forks           = [];
         $this->shutdownSignal  = static::DEFAULT_SHUTDOWN_SIGNAL;
         $this->shutdownTimeout = static::DEFAULT_SHUTDOWN_GRACETIME;
-
-        $this->spork->zombieOkay(true);
     }
 
     /**
@@ -213,16 +201,6 @@ class Daemon
     public function getSleeper()
     {
         return $this->sleeper;
-    }
-
-    /**
-     * Get the process manager
-     *
-     * @return ProcessManager
-     */
-    public function getSpork()
-    {
-        return $this->spork;
     }
 
     /**
@@ -325,6 +303,7 @@ class Daemon
             $this->logger->debug("Received QUIT shutdown in " . getmypid());
             $stopped = true;
         });
+        $this->builtIn->pcntl_signal(SIGCLD, SIG_IGN);
 
         // bind restart signal
         $restart = false;
@@ -356,7 +335,6 @@ class Daemon
                 foreach ($this->workers as $name => $worker) {
                     $this->assureWorkerRuns($worker);
                 }
-                $this->spork->wait(false);
 
                 // shut down
                 if ($stopped) {
@@ -472,13 +450,14 @@ class Daemon
         }
 
         while ($count < $amount) {
-            $forks [] = $fork = $this->spork->fork(function () use ($worker) {
+            $forks [] = $fork = new Fork(function () use ($worker) {
 
                 // set shutdown handler, might be overwritten by worker's startup ro so
                 $this->builtIn->pcntl_signal(SIGTERM, function () { exit(); });
                 $this->builtIn->pcntl_signal(SIGQUIT, function () { exit(); });
                 $this->builtIn->pcntl_signal(SIGINT, function () { exit(); });
                 $this->builtIn->pcntl_signal(SIGUSR1, SIG_IGN);
+                $this->builtIn->pcntl_signal(SIGCLD, SIG_DFL);
 
                 // set process name
                 $this->setProcessName($worker->getName());
@@ -656,14 +635,7 @@ class Daemon
                     } catch (ProcessControlException $e) {
                         $this->logger->error("Error killing fork: {$e->getMessage()}");
                     }
-                    $this->spork->wait(false);
                 }
-            }
-
-            try {
-                $this->spork->wait(false);
-            } catch (ProcessControlException $e) {
-                // nothing
             }
 
             $this->sleeper->sleep(1);
