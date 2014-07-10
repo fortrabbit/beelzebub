@@ -42,7 +42,7 @@ class FuzzySleeper implements Sleeper
     public function sleep($time)
     {
         $sleepTime = $this->randomFactor * $time;
-        $sleepTime = $sleepTime + (mt_rand($sleepTime * 100, ($time + $sleepTime) * 100) / 100);
+        $sleepTime = mt_rand($sleepTime * 100, ($time + $sleepTime) * 100) / 100;
         $this->builtIn->usleep($sleepTime * 1000000);
     }
 }

@@ -69,6 +69,11 @@ class Daemon
     /**
      * @var int
      */
+    protected $processListCounter = 0;
+
+    /**
+     * @var int
+     */
     protected $processListTimeout;
 
     /**
@@ -316,6 +321,7 @@ class Daemon
         while (true) {
 
             try {
+                $countBefore = $this->processListCounter;
 
                 // handle restart of child processes
                 if ($restart) {
@@ -345,7 +351,10 @@ class Daemon
                 if ($timeout && $timeout > time()) {
                     break;
                 }
-                $this->sleeper->sleep(1);
+
+                $countAfter = $this->processListCounter;
+                $this->logger->debug("Ran ". ($countAfter - $countBefore). " times this cycle, total: {$countAfter}");
+                $this->sleeper->sleep(10);
 
             } catch (\Exception $e) {
                 $this->logger->critical("Failure in daemon loop: $e");
@@ -509,7 +518,7 @@ class Daemon
     {
         $running = [];
         foreach ($forks as $num => $fork) {
-            if (!$fork->isExited() && $this->getProcessList($num === 0)->getByPid($fork->getPid())) {
+            if (!$fork->isExited()) { // && $this->getProcessList($num === 0)->getByPid($fork->getPid())) {
                 $running[] = $fork;
             }
         }
@@ -543,8 +552,9 @@ class Daemon
      */
     protected function getProcessList($forceRefresh = false)
     {
+        $this->processListCounter ++;
         $now = microtime();
-        if ($forceRefresh || !$this->processListTimeout || $this->processListTimeout > $now) {
+        if ($forceRefresh || !$this->processListTimeout || $this->processListTimeout < $now) {
             $this->processListTimeout = $now + 0.5;
             $this->processList        = $this->processes->all();
         }
@@ -591,7 +601,7 @@ class Daemon
             foreach ($forks as $fork) {
 
                 // re-check here to reduce the exception error on killing
-                if ($fork->isExited() || !$this->getProcessList()->getByPid($fork->getPid())) {
+                if ($fork->isExited()) { // || !$this->getProcessList()->getByPid($fork->getPid())) {
                     continue;
                 }
 
