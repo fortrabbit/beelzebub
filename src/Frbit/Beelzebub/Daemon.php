@@ -339,6 +339,9 @@ class Daemon
 
                 // assure worker running
                 foreach ($this->workers as $name => $worker) {
+                    if ($stopped) {
+                        break;
+                    }
                     $this->assureWorkerRuns($worker);
                 }
 
@@ -352,8 +355,6 @@ class Daemon
                     break;
                 }
 
-                $countAfter = $this->processListCounter;
-                $this->logger->debug("Ran ". ($countAfter - $countBefore). " times this cycle, total: {$countAfter}");
                 $this->sleeper->sleep(10);
 
             } catch (\Exception $e) {
