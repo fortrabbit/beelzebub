@@ -355,11 +355,10 @@ class Daemon
                     break;
                 }
 
-                $this->sleeper->sleep(10);
-
             } catch (\Exception $e) {
                 $this->logger->critical("Failure in daemon loop: $e");
             }
+            $this->sleeper->sleep(10);
         }
 
         if ($forks = $this->getAllForks()) {
