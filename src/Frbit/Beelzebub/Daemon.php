@@ -240,19 +240,19 @@ class Daemon
     {
         // no pidfile?
         if (!$this->builtIn->file_exists($pidFile)) {
-            die("Pidfile \"$pidFile\" does not exist");
+            return $this->builtIn->die("Pidfile \"$pidFile\" does not exist");
         }
 
         // pid invalid?
         $pid = $this->builtIn->file_get_contents($pidFile);
         if (!$pid) {
-            die("Pidfile \"$pidFile\" does not contain a pid");
+            return $this->builtIn->die("Pidfile \"$pidFile\" does not contain a pid");
         }
 
         // initial not found
         $process = $this->getProcessList(true)->getByPid($pid);
         if (!$process) {
-            die("No process found with pid \"$pid\"");
+            return $this->builtIn->die("No process found with pid \"$pid\"");
         }
 
         // send shutdown and wait ..
@@ -388,7 +388,7 @@ class Daemon
         if ($pid) {
             return $pid;
         } elseif (is_null($pid)) {
-            die("Failed to fork");
+            return $this->builtIn->die("Failed to fork");
         } else {
             if ($gid !== false) {
                 $this->builtIn->posix_setgid($gid);

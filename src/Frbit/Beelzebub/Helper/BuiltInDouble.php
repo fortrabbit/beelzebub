@@ -7,19 +7,22 @@ namespace Frbit\Beelzebub\Helper;
 /**
  * Class BuiltInDouble
  *
- * @method void chroot(string $directory)
- * @method bool file_exists(string $path)
+ * @method bool   file_exists(string $path)
+ * @method bool   time_sleep_until(float $timestamp)
+ * @method int    pcntl_fork()
+ * @method int    posix_setsid()
  * @method string file_get_contents(string $path)
- * @method void file_put_contents(string $path, string $content)
- * @method int pcntl_fork()
- * @method void pcntl_signal(int $signal, mixed $callback)
- * @method void posix_kill(int $pid, int $signal)
- * @method int posix_setsid()
- * @method void posix_setgid(int $gid)
- * @method void posix_setuid(int $uid)
- * @method void sleep(int $time)
- * @method void usleep(int $micro_seconds)
- * @method void unlink(string $path)
+ * @method void   chroot(string $directory)
+ * @method void   die(string $message)
+ * @method void   file_put_contents(string $path, string $content)
+ * @method void   pcntl_exec(\string $path, array $args = null, array $envs = null)
+ * @method void   pcntl_signal(int $signal, mixed $callback)
+ * @method void   posix_kill(int $pid, int $signal)
+ * @method void   posix_setgid(int $gid)
+ * @method void   posix_setuid(int $uid)
+ * @method void   sleep(int $time)
+ * @method void   unlink(string $path)
+ * @method void   usleep(int $micro_seconds)
  *
  * @package Frbit\Beelzebub\Helper
  **/

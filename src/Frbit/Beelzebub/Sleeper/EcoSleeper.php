@@ -3,6 +3,7 @@
 
 namespace Frbit\Beelzebub\Sleeper;
 
+use Frbit\Beelzebub\Helper\BuiltInDouble;
 use Frbit\Beelzebub\Sleeper;
 
 /**
@@ -16,8 +17,10 @@ use Frbit\Beelzebub\Sleeper;
  **/
 class EcoSleeper implements Sleeper
 {
-    public static $SLEEP_BIN = '/bin/sleep';
-
+    /**
+     * @var BuiltInDouble
+     */
+    protected $builtInDouble;
     /**
      * @var float
      */
@@ -30,13 +33,15 @@ class EcoSleeper implements Sleeper
     /**
      * Class constructor
      *
-     * @param float $fuzziness
-     * @param float $pauseEvery
+     * @param float         $fuzziness
+     * @param float         $pauseEvery
+     * @param BuiltInDouble $builtInDouble
      */
-    public function __construct($fuzziness = 1.0, $pauseEvery = 1.0)
+    public function __construct($fuzziness = 1.0, $pauseEvery = 1.0, BuiltInDouble $builtInDouble = null)
     {
-        $this->fuzziness  = $fuzziness;
-        $this->pauseEvery = $pauseEvery;
+        $this->fuzziness     = $fuzziness;
+        $this->pauseEvery    = $pauseEvery;
+        $this->builtInDouble = $builtInDouble;
     }
 
     /**
@@ -68,8 +73,10 @@ class EcoSleeper implements Sleeper
         } else {
             $intervals = [$interval];
         }
+        $end = microtime(true);
         foreach ($intervals as $iv) {
-            time_sleep_until(microtime(true) + $iv);
+            $end += $iv;
+            $this->builtInDouble->time_sleep_until($end);
         }
     }
 }
