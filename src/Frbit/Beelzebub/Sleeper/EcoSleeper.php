@@ -41,7 +41,7 @@ class EcoSleeper implements Sleeper
     {
         $this->fuzziness     = $fuzziness;
         $this->pauseEvery    = $pauseEvery;
-        $this->builtInDouble = $builtInDouble;
+        $this->builtInDouble = $builtInDouble ?: new BuiltInDouble();
     }
 
     /**
@@ -76,6 +76,9 @@ class EcoSleeper implements Sleeper
         $end = microtime(true);
         foreach ($intervals as $iv) {
             $end += $iv;
+            if ($end <= microtime(true)) {
+                continue;
+            }
             $this->builtInDouble->time_sleep_until($end);
         }
     }
