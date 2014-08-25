@@ -41,7 +41,7 @@ class EcoSleeper implements Sleeper
     {
         $this->fuzziness     = $fuzziness;
         $this->pauseEvery    = $pauseEvery;
-        $this->builtInDouble = $builtInDouble;
+        $this->builtInDouble = $builtInDouble ?: new BuiltInDouble;
     }
 
     /**

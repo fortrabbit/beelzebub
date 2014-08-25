@@ -32,8 +32,8 @@ class FuzzySleeper implements Sleeper
      */
     public function __construct($randomFactor = 0.5, BuiltInDouble $builtInDouble = null)
     {
-        $this->builtIn      = $builtInDouble ?: new BuiltInDouble();
         $this->randomFactor = $randomFactor;
+        $this->builtIn      = $builtInDouble ?: new BuiltInDouble();
     }
 
     /**
