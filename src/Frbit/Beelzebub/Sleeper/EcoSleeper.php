@@ -76,6 +76,9 @@ class EcoSleeper implements Sleeper
         $end = microtime(true);
         foreach ($intervals as $iv) {
             $end += $iv;
+            if ($end <= microtime(true) + 0.01) {
+                continue;
+            }
             $this->builtInDouble->time_sleep_until($end);
         }
     }

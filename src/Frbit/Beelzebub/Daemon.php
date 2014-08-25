@@ -62,14 +62,14 @@ class Daemon
     protected $name;
 
     /**
+     * @var int
+     */
+    protected $pid;
+
+    /**
      * @var ProcessList
      */
     protected $processList;
-
-    /**
-     * @var int
-     */
-    protected $processListCounter = 0;
 
     /**
      * @var int
@@ -292,6 +292,7 @@ class Daemon
      */
     public function run($timeout = false)
     {
+        $this->pid = getmypid();
         $this->setProcessName($this->name);
 
         // bind shutdown signal
@@ -321,8 +322,6 @@ class Daemon
         while (true) {
 
             try {
-                $countBefore = $this->processListCounter;
-
                 // handle restart of child processes
                 if ($restart) {
                     if ($forks = $this->getAllForks()) {
@@ -343,6 +342,11 @@ class Daemon
                         break;
                     }
                     $this->assureWorkerRuns($worker);
+                    if ($this->pid !== getmypid()) {
+                        throw new \RuntimeException(
+                            "Oha! Exited worker run with non master pid [master: {$this->pid}, my: " . getmypid() . "]"
+                        );
+                    }
                 }
 
                 // shut down
@@ -357,6 +361,10 @@ class Daemon
 
             } catch (\Exception $e) {
                 $this->logger->critical("Failure in daemon loop: $e");
+                if ($this->pid !== getmypid()) {
+                    $this->logger->critical("Left loop as non master pid [master: {$this->pid}, my: " . getmypid() . "]");
+                    exit(1);
+                }
             }
             $this->sleeper->sleep(10);
         }
@@ -484,6 +492,11 @@ class Daemon
                 exit();
             });
             $this->logger->info("Started new process for {$worker->getName()} with pid {$fork->getPid()}");
+            if ($this->pid !== getmypid()) {
+                throw new \RuntimeException(
+                    "Fork generation failure! Left master process {$this->pid} and now in child process ". getmypid()
+                );
+            }
             $count++;
         }
 
@@ -552,7 +565,6 @@ class Daemon
      */
     protected function getProcessList($forceRefresh = false)
     {
-        $this->processListCounter ++;
         $now = microtime();
         if ($forceRefresh || !$this->processListTimeout || $this->processListTimeout < $now) {
             $this->processListTimeout = $now + 0.5;
