@@ -141,6 +141,28 @@ class DaemonTest extends TestCase
         $this->assertSame('died', $result);
     }
 
+    public function testHaltDiesWithMissingProcess()
+    {
+        $daemon = $this->generateDaemonWithWorker();
+        $this->builtIns->shouldReceive('file_exists')
+            ->with('pid-file')
+            ->andReturn(true);
+        $this->builtIns->shouldReceive('file_get_contents')
+            ->with('pid-file')
+            ->andReturn('1234');
+
+        $processList = $this->mock('Frbit\System\UnixProcess\ProcessList');
+        $this->processes->shouldReceive('all')
+            ->andReturn($processList);
+        $processList->shouldReceive('getByPid')
+            ->with('1234')
+            ->andReturnNull();
+        $this->builtIns->shouldReceive('die')
+            ->andReturn('died');
+        $result = $daemon->halt('pid-file', false);
+        $this->assertSame('died', $result);
+    }
+
 
     /**
      * @return Daemon

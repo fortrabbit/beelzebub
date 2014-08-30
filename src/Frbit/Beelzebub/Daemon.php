@@ -16,6 +16,7 @@ use Frbit\Beelzebub\Helper\BuiltInDouble;
 use Frbit\Beelzebub\Sleeper\RealSleeper;
 use Frbit\System\UnixProcess\Manager;
 use Frbit\System\UnixProcess\ProcessList;
+use Frbit\System\UnixProcess\UnixProcess;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Psr\Log\LoggerInterface;
@@ -256,24 +257,12 @@ class Daemon
         }
 
         // send shutdown and wait ..
-        $this->builtIn->posix_kill($process->getPid(), $this->getShutdownSignal());
-        $end = time() + $this->getShutdownTimeout();
-        while (time() < $end) {
-            $process = $this->getProcessList(true)->getByPid($pid);
-            if (!$process) {
-                break;
-            }
-            $this->sleeper->sleep(1);
-        }
+        $process = $this->shutdownProcessGraceful($process);
 
         // process still there -> force kill?
         if ($process) {
             if ($forceKill) {
-                $childs = $process->getAllChilds();
-                foreach ($childs as $child) {
-                    $this->builtIn->posix_kill($child->getPid(), SIGKILL);
-                }
-                $this->builtIn->posix_kill($process->getPid(), SIGKILL);
+                $this->shutdownProcessHard($process);
             } else {
                 return false;
             }
@@ -665,6 +654,38 @@ class Daemon
                 $this->logger->debug("Still waiting for " . count($forks) . " children");
             }
         }
+    }
+
+    /**
+     * @param UnixProcess $process
+     *
+     * @return UnixProcess|null
+     */
+    protected function shutdownProcessGraceful(UnixProcess $process)
+    {
+        $this->builtIn->posix_kill($process->getPid(), $this->getShutdownSignal());
+        $end = time() + $this->getShutdownTimeout();
+        while (time() < $end) {
+            $process = $this->getProcessList(true)->getByPid($process->getPid());
+            if (!$process) {
+                break;
+            }
+            $this->sleeper->sleep(1);
+        }
+
+        return $process;
+    }
+
+    /**
+     * @param UnixProcess $process
+     */
+    protected function shutdownProcessHard(UnixProcess $process)
+    {
+        $childs = $process->getAllChilds();
+        foreach ($childs as $child) {
+            $this->builtIn->posix_kill($child->getPid(), SIGKILL);
+        }
+        $this->builtIn->posix_kill($process->getPid(), SIGKILL);
     }
 
 

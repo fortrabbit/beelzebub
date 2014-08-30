@@ -21,15 +21,10 @@
         "process",
         "fork"
     ],
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "git@bitbucket.org:ukautz/frbit-system-unix-process.git"
-        }
-    ],
     "require": {
         "ext-pcntl": "*",
         "ext-posix": "*",
+        "frbit/system-builtin": "*@dev",
         "frbit/system-unix-process": "*@dev",
         "kriswallsmith/spork": "*@dev",
         "monolog/monolog": ">=1.10@dev",
@@ -49,5 +44,11 @@
         "psr-0": {
             "Frbit\\Beelzebub\\": "src/"
         }
-    }
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@bitbucket.org:ukautz/frbit-system-unix-process.git"
+        }
+    ]
 }
