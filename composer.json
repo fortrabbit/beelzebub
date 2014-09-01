@@ -27,11 +27,11 @@
         "frbit/system-builtin": "*@dev",
         "frbit/system-unix-process": "*@dev",
         "kriswallsmith/spork": "*@dev",
-        "monolog/monolog": ">=1.10@dev",
+        "monolog/monolog": ">=1.10",
         "php": ">=5.4.0",
-        "psr/log": "1.*",
-        "symfony/event-dispatcher": "2.4.*",
-        "symfony/filesystem": "2.4.*"
+        "psr/log": ">=1.0",
+        "symfony/event-dispatcher": ">=2.4",
+        "symfony/filesystem": ">=2.4"
     },
     "require-dev": {
         "mockery/mockery": "@dev",
@@ -46,6 +46,10 @@
         }
     },
     "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@bitbucket.org:ukautz/frbit-system-builtin.git"
+        },
         {
             "type": "vcs",
             "url": "git@bitbucket.org:ukautz/frbit-system-unix-process.git"
