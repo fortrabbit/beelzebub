@@ -79,7 +79,13 @@ class EcoSleeper implements Sleeper
             if ($end <= microtime(true) + 0.01) {
                 continue;
             }
-            $this->builtInDouble->time_sleep_until($end);
+            try {
+                $this->builtInDouble->time_sleep_until($end);
+            } catch (\ErrorException $e) {
+                // ignore error here, since this probably means between determining end time
+                //  and then sleeping to end time the end time is already reached
+                continue;
+            }
         }
     }
 }
